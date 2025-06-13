@@ -111,6 +111,10 @@ class GameScene extends Phaser.Scene {
 
         // Set up UI
         this.setupUI();
+
+        // (Optional) Enable Arcade Physics debug
+        // this.physics.world.drawDebug = true;
+        // this.physics.world.debugGraphic = this.add.graphics();
     }
 
     handleJump() {
@@ -223,9 +227,9 @@ class GameScene extends Phaser.Scene {
         platform.setImmovable(true);
         platform.body.allowGravity = false;
         
-        // Set explicit body size and offset for better collision
-        platform.body.setSize(width, 20, true);
-        platform.body.setOffset(0, 0);
+        // Set body height to 30px and offset so top is flush with sprite
+        platform.body.setSize(width, 30, true);
+        platform.body.setOffset(0, -10); // 10px above the sprite, so top is flush
         
         // 70% chance to spawn a collectible
         if (Math.random() < 0.7) {
