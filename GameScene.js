@@ -162,19 +162,18 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        // Move platforms and collectibles left
-        const moveAmount = (this.platformSpeed * this.game.loop.delta) / 1000;
-        
-        // Use getChildren() to safely iterate and filter active game objects
+        // Move platforms using physics velocity only
         const platforms = this.platforms.getChildren();
         for (let i = platforms.length - 1; i >= 0; i--) {
             const platform = platforms[i];
-            platform.setVelocityX(-this.platformSpeed); // Use physics velocity instead of x position
+            platform.setVelocityX(-this.platformSpeed); // Use physics velocity
             if (platform.x < -100) {
                 platform.destroy();
             }
         }
 
+        // Move collectibles visually (if needed)
+        const moveAmount = (this.platformSpeed * this.game.loop.delta) / 1000;
         const collectibles = this.collectibles.getChildren();
         for (let i = collectibles.length - 1; i >= 0; i--) {
             const collectible = collectibles[i];
