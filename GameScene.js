@@ -32,8 +32,14 @@ class GameScene extends Phaser.Scene {
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
         
         // Create groups
-        this.platforms = this.physics.add.group({ allowGravity: false, immovable: true });
-        this.collectibles = this.physics.add.group({ allowGravity: false, immovable: true });
+        this.platforms = this.physics.add.group({ 
+            allowGravity: false,
+            immovable: true
+        });
+        this.collectibles = this.physics.add.group({ 
+            allowGravity: false,
+            immovable: true
+        });
         
         // Player setup
         this.player = this.add.rectangle(this.PLAYER_X, 300, 40, 60, 0x00aaff);
@@ -143,9 +149,7 @@ class GameScene extends Phaser.Scene {
 
     spawnPlatform(x, y, width) {
         const platform = this.add.rectangle(x, y, width, 20, 0x888888);
-        this.physics.add.existing(platform, true);
-        platform.body.immovable = true;
-        platform.body.moves = false;
+        this.physics.add.existing(platform);
         this.platforms.add(platform);
 
         // 70% chance to spawn a collectible
@@ -160,9 +164,7 @@ class GameScene extends Phaser.Scene {
         const color = type === 'stone' ? 0xaaaaaa : type === 'ice' ? 0x66ccff : 0xffee00;
         
         const collectible = this.add.rectangle(x, y, 30, 30, color);
-        this.physics.add.existing(collectible, true);
-        collectible.body.immovable = true;
-        collectible.body.moves = false;
+        this.physics.add.existing(collectible);
         collectible.type = type;
         this.collectibles.add(collectible);
         
