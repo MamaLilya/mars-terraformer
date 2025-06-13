@@ -14,38 +14,37 @@ class GameScene extends Phaser.Scene {
         this.platformsLanded = 0;
         this.nextLevelAt = 10;
 
-        // Game settings - matching Pygame values
-        this.baseSpeed = 5;
-        this.speed = this.baseSpeed + (this.level - 1) * 0.5;
-        this.PLAYER_X = 100; // Fixed X position
+        // Constants
+        this.PLAYER_X = 100;
+        this.GRAVITY = 0.8 * 1000; // Convert Pygame gravity to Phaser scale
+        this.JUMP_FORCE = -15 * 60; // Convert Pygame jump force to Phaser scale
+        this.PLATFORM_SPEED = 5;
+        this.MIN_PLATFORM_Y = 300;
+        this.MAX_PLATFORM_Y = 500;
+        this.PLATFORM_SPAWN_INTERVAL = 1000; // 1 second
         this.lastPlatformTime = 0;
-        this.platformInterval = 1000; // Spawn platform every 1 second
-        
+
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
         
-        // Groups
-        this.platforms = this.physics.add.group();
-        this.collectibles = this.physics.add.group();
+        // Create groups
+        this.platforms = this.physics.add.group({ allowGravity: false, immovable: true });
+        this.collectibles = this.physics.add.group({ allowGravity: false });
         
-        // Player setup - FIXED at x=100
+        // Player setup
         this.player = this.add.rectangle(this.PLAYER_X, 300, 40, 60, 0x00aaff);
         this.physics.add.existing(this.player);
+        this.player.body.setGravityY(this.GRAVITY);
+        this.player.body.setCollideWorldBounds(false); // Allow falling off screen
         
-        // Set gravity to match Pygame (0.8)
-        this.player.body.setGravityY(800); // Phaser uses pixels/second², so we multiply by 1000
-        this.player.body.setCollideWorldBounds(true);
-        this.player.jumpCount = 0;
+        // Jump state
+        this.canDoubleJump = false;
+        this.hasDoubleJumped = false;
+        this.isJumping = false;
         
-        // Initial platform
-        this.spawnPlatform(100, 450, 300);
-        
-        // Spawn initial platforms
-        let lastX = 400;
-        for (let i = 0; i < 3; i++) {
-            lastX += randInt(200, 400);
-            this.spawnPlatform(lastX, randInt(300, 500), randInt(100, 200));
-        }
+        // Initial platforms
+        this.spawnPlatform(100, 450, 300); // Starting platform
+        this.spawnPlatform(500, randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y), 200);
         
         // Collisions
         this.physics.add.collider(this.player, this.platforms, this.onPlatformCollide, null, this);
@@ -53,20 +52,25 @@ class GameScene extends Phaser.Scene {
         
         // Controls
         this.cursors = this.input.keyboard.createCursorKeys();
-        this.input.on('pointerdown', () => this.jump());
+        this.input.on('pointerdown', () => this.handleJump());
         
         // UI
         this.setupUI();
+
+        // Prevent horizontal movement
+        this.player.body.setAllowGravity(true);
+        this.player.body.setVelocityX(0);
+        this.player.body.setImmovable(true);
     }
 
     update(time) {
-        // Keep player fixed at X = 100
+        // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
 
         // Handle jump input
         if (this.cursors.up.isDown) {
-            this.jump();
+            this.handleJump();
         }
 
         // Check for game over
@@ -75,21 +79,27 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        // Spawn new platform every second
-        if (time - this.lastPlatformTime >= this.platformInterval) {
-            const rightmostX = this.getRightmostPlatformX();
+        // Update jump state
+        if (this.player.body.touching.down) {
+            this.isJumping = false;
+            this.hasDoubleJumped = false;
+            this.canDoubleJump = false;
+            this.player.setFillStyle(0x00aaff);
+        }
+
+        // Spawn platforms at regular intervals
+        if (time - this.lastPlatformTime >= this.PLATFORM_SPAWN_INTERVAL) {
             this.spawnPlatform(
-                rightmostX + randInt(200, 400),
-                randInt(300, 500),
+                850, // Spawn just off screen
+                randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y),
                 randInt(100, 200)
             );
             this.lastPlatformTime = time;
         }
 
         // Move platforms and collectibles left
-        const deltaTime = this.game.loop.delta;
-        const moveAmount = this.speed * deltaTime;
-
+        const moveAmount = this.PLATFORM_SPEED * (1 + (this.level - 1) * 0.1);
+        
         this.platforms.children.iterate(platform => {
             platform.x -= moveAmount;
             if (platform.x < -100) {
@@ -112,27 +122,33 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    getRightmostPlatformX() {
-        let rightmost = 800; // Start at screen width
-        this.platforms.children.iterate(platform => {
-            if (platform.x > rightmost) {
-                rightmost = platform.x;
-            }
-        });
-        return rightmost;
+    handleJump() {
+        if (this.player.body.touching.down) {
+            // First jump from platform
+            this.player.body.setVelocityY(this.JUMP_FORCE);
+            this.isJumping = true;
+            this.canDoubleJump = true;
+            this.player.setFillStyle(0x00ff00);
+        } else if (this.canDoubleJump && !this.hasDoubleJumped) {
+            // Double jump in air
+            this.player.body.setVelocityY(this.JUMP_FORCE);
+            this.hasDoubleJumped = true;
+            this.canDoubleJump = false;
+            this.player.setFillStyle(0xffff00);
+        }
     }
 
     spawnPlatform(x, y, width) {
         const platform = this.add.rectangle(x, y, width, 20, 0x888888);
         this.physics.add.existing(platform, true);
+        platform.body.setAllowGravity(false);
+        platform.body.setImmovable(true);
         this.platforms.add(platform);
 
         // 30% chance to spawn a collectible
         if (Math.random() < 0.3) {
             this.spawnCollectible(x, y - 40);
         }
-
-        return platform;
     }
 
     spawnCollectible(x, y) {
@@ -142,10 +158,10 @@ class GameScene extends Phaser.Scene {
         
         const collectible = this.add.rectangle(x, y, 30, 30, color);
         this.physics.add.existing(collectible);
+        collectible.body.setAllowGravity(false);
         collectible.type = type;
         this.collectibles.add(collectible);
         
-        // Floating animation
         this.tweens.add({
             targets: collectible,
             y: y - 20,
@@ -156,21 +172,12 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    jump() {
-        if (this.player.body.touching.down || this.player.jumpCount < 1) {
-            // Set jump velocity to match Pygame (-15)
-            this.player.body.setVelocityY(-650); // Scaled for Phaser's pixel/second system
-            this.player.jumpCount++;
-            
-            // Visual feedback
-            if (this.player.jumpCount === 1) {
-                this.player.setFillStyle(0x00ff00);
-            }
-        }
-    }
-
     onPlatformCollide() {
-        this.player.jumpCount = 0;
+        if (!this.player.body.touching.down) return;
+        
+        this.isJumping = false;
+        this.hasDoubleJumped = false;
+        this.canDoubleJump = false;
         this.player.setFillStyle(0x00aaff);
     }
 
@@ -180,7 +187,6 @@ class GameScene extends Phaser.Scene {
         this.scoreText.setText(`Score: ${this.score}`);
         this.resText.setText(this.resString());
         
-        // Particle effect
         const particles = this.add.particles(collectible.x, collectible.y, {
             speed: 100,
             scale: { start: 1, end: 0 },
@@ -212,12 +218,10 @@ class GameScene extends Phaser.Scene {
     levelUp() {
         this.level++;
         window.SHARED.level = this.level;
-        this.speed = this.baseSpeed + (this.level - 1) * 0.5;
         this.platformsLanded = 0;
         this.nextLevelAt += 5;
         this.levelText.setText(`Level: ${this.level}`);
         
-        // Level up animation
         const levelText = this.add.text(400, 300, `Level ${this.level}!`, {
             fontSize: 48,
             color: '#ffff00'
