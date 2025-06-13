@@ -15,10 +15,11 @@ class GameScene extends Phaser.Scene {
         this.nextLevelDistance = 2000;
         this.platforms = this.physics.add.staticGroup();
         this.collectibles = this.physics.add.group();
-        this.player = this.physics.add.sprite(100, 400, null).setDisplaySize(40, 60).setTint(0x00aaff);
+        this.player = this.add.rectangle(100, 400, 40, 60, 0x00aaff);
+        this.physics.add.existing(this.player);
         this.player.body.setCollideWorldBounds(true);
-        this.player.jumpCount = 0;
         this.player.body.setGravityY(1500);
+        this.player.jumpCount = 0;
         this.setupUI();
         this.spawnPlatform(100, 500, 300);
         for (let i = 0; i < 5; i++) this.spawnPlatform(400 + i * 200, randInt(350, 550), randInt(120, 200));
@@ -30,6 +31,8 @@ class GameScene extends Phaser.Scene {
         this.gameOver = false;
         this.lastCollectibleX = 0;
         this.add.rectangle(400, 300, 800, 600, 0x111111).setScrollFactor(0);
+        this.cameras.main.startFollow(this.player, true, 1, 0);
+        this.cameras.main.setFollowOffset(-300, 0);
     }
     setupUI() {
         const uiGroup = this.add.container(0, 0).setScrollFactor(0);
@@ -41,15 +44,14 @@ class GameScene extends Phaser.Scene {
     }
     update() {
         if (this.gameOver) return;
-        this.player.setVelocityX(this.speed);
+        this.player.body.setVelocityX(this.speed);
         if (this.cursors.up.isDown) this.jump();
-        this.cameras.main.scrollX = this.player.x - 100;
         this.distanceTraveled = Math.max(0, this.player.x - 100);
         if (this.distanceTraveled >= this.nextLevelDistance) {
             this.levelUp();
         }
         this.platforms.children.iterate(plat => {
-            if (plat.x + plat.width < this.cameras.main.scrollX) {
+            if (plat.x + plat.width < this.cameras.main.scrollX - 100) {
                 plat.destroy();
                 this.spawnPlatform(this.nextPlatX, randInt(350, 550), randInt(120, 200));
                 this.nextPlatX += randInt(180, 260);
@@ -58,7 +60,7 @@ class GameScene extends Phaser.Scene {
             }
         });
         this.collectibles.children.iterate(col => {
-            if (col.x < this.cameras.main.scrollX - 50) col.destroy();
+            if (col.x < this.cameras.main.scrollX - 100) col.destroy();
         });
         if (this.nextPlatX - this.lastCollectibleX > 300) {
             this.spawnCollectible(this.nextPlatX - 150, randInt(250, 400));
@@ -72,35 +74,50 @@ class GameScene extends Phaser.Scene {
         this.speed = this.baseSpeed + (this.level - 1) * 40;
         this.nextLevelDistance += 2000;
         this.levelText.setText(`Level: ${this.level}`);
-        this.add.text(this.player.x, 300, `Level ${this.level}!`, {
+        
+        const levelText = this.add.text(this.player.x, 300, `Level ${this.level}!`, {
             fontSize: 48,
             color: '#ffff00'
-        }).setOrigin(0.5).setScrollFactor(1);
+        }).setOrigin(0.5);
+        
+        this.tweens.add({
+            targets: levelText,
+            alpha: 0,
+            y: 250,
+            duration: 1500,
+            onComplete: () => levelText.destroy()
+        });
     }
     onPlatformCollide() {
         this.player.jumpCount = 0;
-        this.player.setTint(0x00aaff);
+        this.player.setFillStyle(0x00aaff);
     }
     jump() {
         if (this.player.body.touching.down || this.player.jumpCount < 1) {
-            this.player.setVelocityY(-500);
+            this.player.body.setVelocityY(-500);
             this.player.jumpCount++;
             if (this.player.jumpCount === 1) {
-                this.player.setTint(0x00ff00);
+                this.player.setFillStyle(0x00ff00);
             }
         }
     }
     spawnPlatform(x, y, w) {
-        const plat = this.platforms.create(x, y, null).setDisplaySize(w, 24).setOrigin(0.5).setTint(0x888888);
-        plat.refreshBody();
+        const plat = this.add.rectangle(x, y, w, 24, 0x888888);
+        this.physics.add.existing(plat, true);
         plat.width = w;
+        this.platforms.add(plat);
+        return plat;
     }
     spawnCollectible(x, y) {
         const types = ['stone', 'ice', 'energy'];
         const type = types[randInt(0, 2)];
         const color = type === 'stone' ? 0xaaaaaa : type === 'ice' ? 0x66ccff : 0xffee00;
-        const col = this.collectibles.create(x, y, null).setDisplaySize(28, 28).setTint(color);
+        
+        const col = this.add.rectangle(x, y, 28, 28, color);
+        this.physics.add.existing(col);
         col.type = type;
+        this.collectibles.add(col);
+        
         this.tweens.add({
             targets: col,
             y: y - 20,
@@ -109,12 +126,15 @@ class GameScene extends Phaser.Scene {
             repeat: -1,
             ease: 'Sine.easeInOut'
         });
+        
+        return col;
     }
     collect(player, col) {
         this.resources[col.type] += 1;
         this.resText.setText(this.resString());
         this.score += 50;
         this.scoreText.setText(`Score: ${this.score}`);
+        
         const particles = this.add.particles(col.x, col.y, {
             speed: 100,
             scale: { start: 1, end: 0 },
@@ -122,7 +142,7 @@ class GameScene extends Phaser.Scene {
             lifespan: 500
         });
         particles.createEmitter({
-            tint: col.tintTopLeft
+            tint: col.fillColor
         });
         setTimeout(() => particles.destroy(), 500);
         col.destroy();
