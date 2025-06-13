@@ -33,6 +33,12 @@ class GameScene extends Phaser.Scene {
         this.add.rectangle(400, 300, 800, 600, 0x111111).setScrollFactor(0);
         this.cameras.main.startFollow(this.player, true, 1, 0);
         this.cameras.main.setFollowOffset(-300, 0);
+        this.cameras.main.scrollX = 0;
+        this.player.x = 100;
+        this.player.y = 400;
+        if (this.player.body) {
+            this.player.body.reset(100, 400);
+        }
     }
     setupUI() {
         const uiGroup = this.add.container(0, 0).setScrollFactor(0);
@@ -158,7 +164,15 @@ class GameScene extends Phaser.Scene {
         if (this.lives > 0) {
             this.cameras.main.shake(200, 0.01);
             this.cameras.main.flash(300, 255, 0, 0);
-            this.time.delayedCall(300, () => this.scene.restart());
+            this.time.delayedCall(300, () => {
+                this.player.x = 100;
+                this.player.y = 400;
+                if (this.player.body) {
+                    this.player.body.reset(100, 400);
+                }
+                this.cameras.main.scrollX = 0;
+                this.scene.restart();
+            });
         } else {
             window.SHARED.lives = 3;
             window.SHARED.level = 1;
