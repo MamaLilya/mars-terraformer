@@ -16,9 +16,9 @@ class GameScene extends Phaser.Scene {
 
     create() {
         // Game state
-        this.level = window.SHARED.level;
-        this.lives = window.SHARED.lives;
-        this.resources = window.SHARED.resources;
+        this.level = window.SHARED.level || 1;
+        this.lives = window.SHARED.lives || 3; // Default to 3 lives if not set
+        this.resources = window.SHARED.resources || { stone: 0, ice: 0, energy: 0 };
         this.score = 0;
         this.platformsLanded = 0;
         this.nextLevelAt = 30; // Level up every 30 platforms
@@ -44,6 +44,7 @@ class GameScene extends Phaser.Scene {
         this.jumping = false;           // True when in any jump (first or double)
         this.onPlatform = false;        // True only when standing on platform
         this.doubleJumpAvailable = false; // True after first jump, false after using double jump
+        this.justSnapped = false;
         
         // Platform generation constants - adjusted to match jump height
         // Calculate max jump height based on physics
@@ -166,7 +167,7 @@ class GameScene extends Phaser.Scene {
         // Check for falling below screen
         if (this.player.y > this.physics.world.bounds.height + 100) {
             console.log('GAME OVER - Player fell off screen');
-            this.scene.restart();
+            this.loseLife();
             return;
         }
 
@@ -197,15 +198,15 @@ class GameScene extends Phaser.Scene {
             if (horizontalOverlap) {
                 // Check for normal landing
                 if (this.player.body.touching.down && this.player.body.blocked.down) {
-                    if (this.player.body.bottom === platform.body.top) {
+                    if (this.player.body.bottom <= platform.body.top + 5) {
                         this.onPlatform = true;
                     }
                 }
                 // Check for backup snap
                 else if (!this.onPlatform && this.player.body.velocity.y >= 0) {
                     const verticalDistance = platform.body.top - this.player.body.bottom;
-                    if (verticalDistance > 0 && verticalDistance <= 20) {
-                        console.log(`Backup snap → player.left: ${playerLeft}, player.right: ${playerRight}, platform.left: ${platformLeft}, platform.right: ${platformRight}, verticalDistance: ${verticalDistance}`);
+                    if (verticalDistance > 0 && verticalDistance <= 25) {
+                        console.log(`Backup snap → verticalDistance: ${verticalDistance}`);
                         
                         // Snap to platform
                         this.player.setPosition(this.player.x, platform.body.top - this.player.body.height/2);
@@ -251,23 +252,13 @@ class GameScene extends Phaser.Scene {
     }
 
     onPlayerLanding(player, platform) {
-        // Increased landing check margin
-        if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 40) {
-            console.log('Landing on platform');
-            console.log('Player:', {
-                x: player.x,
-                y: player.y,
-                left: player.body.left,
-                right: player.body.right,
-                bottom: player.body.bottom
+        const verticalDistance = platform.body.top - player.body.bottom;
+        if (verticalDistance >= -5 && verticalDistance <= 30) { // More forgiving vertical check
+            console.log('Landing on platform', {
+                verticalDistance,
+                playerBottom: player.body.bottom,
+                platformTop: platform.body.top
             });
-            console.log('Platform:', {
-                x: platform.x,
-                y: platform.y,
-                top: platform.body.top,
-                bottom: platform.body.bottom
-            });
-            // Set player position and velocity
             player.y = platform.body.top - player.displayHeight / 2 + 1;
             player.body.velocity.y = 0;
             player.body.updateFromGameObject();
@@ -294,11 +285,10 @@ class GameScene extends Phaser.Scene {
         // Ensure proper physics settings
         platform.setImmovable(true);
         platform.body.allowGravity = false;
-        // Set body to match sprite exactly with slightly thicker hitbox
-        platform.body.setSize(width, 25, true);
-        platform.body.setOffset(0, -5); // Move hitbox up slightly
+        platform.body.setSize(width, 30, true); // Increased hitbox height
+        platform.body.setOffset(0, -10); // Increased offset for better collision
         // Log platform position and width
-        console.log('Spawned platform:', {x, y, width});
+        console.log('Spawned platform:', {x, y, width, hitboxHeight: 30, offset: -10});
         // 70% chance to spawn a collectible
         if (Math.random() < 0.7) {
             this.spawnCollectible(x, y - 40);
@@ -399,10 +389,19 @@ class GameScene extends Phaser.Scene {
         window.SHARED.resources = this.resources;
         
         if (this.lives <= 0) {
-            console.log('Game Over triggered');
+            console.log('Game Over triggered - No lives left');
             this.scene.start('GameOver', { score: this.score });
         } else {
-            console.log('Restarting scene');
+            console.log('Restarting scene - Lives remaining:', this.lives);
+            // Reset game state
+            this.score = 0;
+            this.platformsLanded = 0;
+            this.level = 1;
+            this.platformSpeed = this.BASE_PLATFORM_SPEED;
+            // Clear all platforms and collectibles
+            this.platforms.clear(true, true);
+            this.collectibles.clear(true, true);
+            // Restart the scene
             this.scene.restart();
         }
     }
