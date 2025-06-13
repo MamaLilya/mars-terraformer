@@ -34,9 +34,9 @@ class GameScene extends Phaser.Scene {
 
         // Constants matching Pygame values
         this.PLAYER_X = 100;
-        this.GRAVITY = 0.8 * 60; // Pygame gravity 0.8 scaled to Phaser's 60fps
-        this.JUMP_FORCE = -15 * 60; // Pygame jump force -15 scaled to Phaser's 60fps
-        this.BASE_PLATFORM_SPEED = 2 * 60; // 2 pixels per frame scaled to Phaser's 60fps
+        this.GRAVITY = 60;       // ~0.8 per frame in Phaser terms
+        this.JUMP_FORCE = -15;   // Direct Pygame value
+        this.BASE_PLATFORM_SPEED = 2 * 60; // Platform speed still needs fps scaling
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
         // Jump state flags
@@ -44,26 +44,25 @@ class GameScene extends Phaser.Scene {
         this.onPlatform = false;        // True only when standing on platform
         this.doubleJumpAvailable = false; // True after first jump, false after using double jump
         
-        // Platform spawn settings
+        // Platform generation constants
         this.MIN_PLATFORM_Y = 300;
         this.MAX_PLATFORM_Y = 500;
         this.MIN_PLATFORM_GAP = 200;
         this.MAX_PLATFORM_GAP = 400;
         this.lastPlatformX = 0;
-        
+     
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
         
         // Configure physics
-        this.physics.world.setBoundsCollision(false, false, false, false);
         this.physics.world.gravity.y = this.GRAVITY;
         
         // Create static platforms group
         this.platforms = this.physics.add.staticGroup();
         this.collectibles = this.physics.add.staticGroup();
         
-        // Initial platform
-        const startPlatform = this.spawnPlatform(100, 450, 300); // Starting platform
+        // Create starting platform
+        const startPlatform = this.spawnPlatform(100, 450, 300);
         
         // Create player sprite and enable physics
         const graphics = this.add.graphics();
@@ -71,7 +70,7 @@ class GameScene extends Phaser.Scene {
         graphics.fillRect(0, 0, 40, 60);
         graphics.generateTexture('player', 40, 60);
         graphics.destroy();
-        
+     
         this.player = this.physics.add.sprite(this.PLAYER_X, 400, 'player');
         this.player.body.setGravityY(this.GRAVITY);
         this.player.body.setCollideWorldBounds(false);
@@ -84,7 +83,7 @@ class GameScene extends Phaser.Scene {
         this.physics.add.collider(
             this.player, 
             this.platforms,
-            this.onPlatformCollide,
+            this.onPlayerLanding,
             null,
             this
         );
@@ -96,26 +95,9 @@ class GameScene extends Phaser.Scene {
             null,
             this
         );
-        
-        // UI
+
+        // Set up UI
         this.setupUI();
-
-        // Platform spawn timer
-        this.time.addEvent({
-            delay: 1000, // 1 second
-            callback: this.spawnNextPlatform,
-            callbackScope: this,
-            loop: true
-        });
-
-        // Set initial state
-        this.onPlatform = true;
-        console.log('Game initialized:', {
-            playerExists: !!this.player,
-            bodyExists: !!(this.player && this.player.body),
-            onPlatform: this.onPlatform,
-            jumping: this.jumping
-        });
     }
 
     handleJump() {
@@ -156,17 +138,6 @@ class GameScene extends Phaser.Scene {
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
 
-        // Update platform state BEFORE handling jump input
-        const touchingGround = this.player.body.touching.down || this.player.body.blocked.down;
-        if (touchingGround && !this.onPlatform) {
-            this.onPlatform = true;
-            this.jumping = false;
-            this.doubleJumpAvailable = false;
-            this.player.setTint(0x00aaff);
-        } else if (!touchingGround) {
-            this.onPlatform = false;
-        }
-
         // Handle jump input from up arrow
         if (Phaser.Input.Keyboard.JustDown(this.cursors.up)) {
             this.handleJump();
@@ -199,9 +170,14 @@ class GameScene extends Phaser.Scene {
                 collectible.destroy();
             }
         }
+
+        // Spawn new platform if needed
+        if (this.lastPlatformX < 900) {
+            this.spawnNextPlatform();
+        }
     }
 
-    onPlatformCollide(player, platform) {
+    onPlayerLanding(player, platform) {
         // Only handle collision if player is falling onto platform
         if (player.body.velocity.y > 0) {
             console.log('Platform collision:', {
@@ -227,6 +203,10 @@ class GameScene extends Phaser.Scene {
                     this.levelUp();
                 }
             }
+        } else {
+            // If we hit a platform from below or the side while jumping,
+            // ensure we're marked as not on platform
+            this.onPlatform = false;
         }
     }
 
@@ -313,59 +293,48 @@ class GameScene extends Phaser.Scene {
         this.spawnPlatform(
             this.lastPlatformX,
             randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y),
-            randInt(100, 200)
+            200
         );
     }
 
     levelUp() {
         this.level++;
         window.SHARED.level = this.level;
-        this.platformSpeed = this.BASE_PLATFORM_SPEED * (1 + this.level * 0.1); // 10% faster per level
-        this.platformsLanded = 0;
-        this.nextLevelAt = 30; // Reset platforms needed
         this.levelText.setText(`Level: ${this.level}`);
+        this.platformSpeed = this.BASE_PLATFORM_SPEED * (1 + this.level * 0.1);
+        this.nextLevelAt += 30;
         
-        const levelText = this.add.text(400, 300, `Level ${this.level}!`, {
-            fontSize: 48,
-            color: '#ffff00'
-        }).setOrigin(0.5);
-        
+        // Visual feedback
+        this.cameras.main.flash(500, 0, 255, 0);
         this.tweens.add({
-            targets: levelText,
-            alpha: 0,
-            y: 250,
-            duration: 1500,
-            onComplete: () => levelText.destroy()
+            targets: this.levelText,
+            scale: 1.5,
+            duration: 200,
+            yoyo: true
         });
     }
 
     loseLife() {
         this.lives--;
         window.SHARED.lives = this.lives;
-        this.livesText.setText(`Lives: ${this.lives}`);
+        window.SHARED.resources = this.resources;
         
-        if (this.lives > 0) {
-            this.cameras.main.shake(200, 0.01);
-            this.cameras.main.flash(300, 255, 0, 0);
-            this.time.delayedCall(300, () => this.scene.restart());
-        } else {
-            window.SHARED.lives = 3;
-            window.SHARED.level = 1;
+        if (this.lives <= 0) {
             this.scene.start('GameOver', { score: this.score });
+        } else {
+            this.scene.restart();
         }
     }
 
     setupUI() {
-        const uiGroup = this.add.container(0, 0);
-        this.levelText = this.add.text(10, 10, `Level: ${this.level}`, { fontSize: 20, color: '#fff' });
-        this.livesText = this.add.text(10, 40, `Lives: ${this.lives}`, { fontSize: 20, color: '#fff' });
-        this.resText = this.add.text(10, 70, this.resString(), { fontSize: 20, color: '#fff' });
-        this.scoreText = this.add.text(10, 100, `Score: ${this.score}`, { fontSize: 20, color: '#fff' });
-        uiGroup.add([this.levelText, this.livesText, this.resText, this.scoreText]);
+        const textStyle = { fontSize: '24px', color: '#fff' };
+        this.scoreText = this.add.text(20, 20, `Score: ${this.score}`, textStyle);
+        this.levelText = this.add.text(20, 50, `Level: ${this.level}`, textStyle);
+        this.livesText = this.add.text(20, 80, `Lives: ${this.lives}`, textStyle);
+        this.resText = this.add.text(20, 110, this.resString(), textStyle);
     }
 
     resString() {
-        const r = this.resources;
-        return `Stone: ${r.stone}  Ice: ${r.ice}  Energy: ${r.energy}`;
+        return `Resources: Stone ${this.resources.stone}  Ice ${this.resources.ice}  Energy ${this.resources.energy}`;
     }
 } 
