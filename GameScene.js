@@ -49,9 +49,12 @@ class GameScene extends Phaser.Scene {
             allowGravity: false,
             immovable: true
         });
+
+        // Initial platform
+        const startPlatform = this.spawnPlatform(100, 450, 300); // Starting platform
         
-        // Player setup
-        this.player = this.add.rectangle(this.PLAYER_X, 300, 40, 60, 0x00aaff);
+        // Player setup - position player on the starting platform
+        this.player = this.add.rectangle(this.PLAYER_X, 400, 40, 60, 0x00aaff);
         this.physics.add.existing(this.player);
         this.player.body.setGravityY(this.GRAVITY);
         this.player.body.setCollideWorldBounds(false);
@@ -62,8 +65,7 @@ class GameScene extends Phaser.Scene {
         this.doubleJumpWindow = 300; // 0.3 seconds for double jump
         this.hasDoubleJumped = false;
         
-        // Initial platforms
-        this.spawnPlatform(100, 450, 300); // Starting platform
+        // Spawn second platform
         this.lastPlatformX = 500;
         this.spawnPlatform(this.lastPlatformX, randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y), 200);
         
@@ -94,7 +96,8 @@ class GameScene extends Phaser.Scene {
         this.player.body.setVelocityX(0);
 
         // Handle jump input
-        if (this.cursors.up.isDown || this.spaceKey.isDown) {
+        if (Phaser.Input.Keyboard.JustDown(this.cursors.up) || 
+            Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
             this.handleJump(time);
         }
 
@@ -128,11 +131,11 @@ class GameScene extends Phaser.Scene {
     }
 
     handleJump(time) {
-        const onGround = this.player.body.touching.down;
+        const onGround = this.player.body.touching.down || this.player.body.blocked.down;
         
         if (onGround) {
             // First jump
-            this.player.body.setVelocityY(this.JUMP_FORCE);
+            this.player.body.velocity.y = this.JUMP_FORCE;
             this.lastJumpTime = time;
             this.canDoubleJump = true;
             this.hasDoubleJumped = false;
@@ -140,7 +143,7 @@ class GameScene extends Phaser.Scene {
         } else if (this.canDoubleJump && !this.hasDoubleJumped && 
                   time - this.lastJumpTime <= this.doubleJumpWindow) {
             // Double jump within 0.3 seconds
-            this.player.body.setVelocityY(this.JUMP_FORCE);
+            this.player.body.velocity.y = this.JUMP_FORCE;
             this.hasDoubleJumped = true;
             this.canDoubleJump = false;
             this.player.setFillStyle(0xffff00);
@@ -166,6 +169,8 @@ class GameScene extends Phaser.Scene {
         if (Math.random() < 0.7) {
             this.spawnCollectible(x, y - 40);
         }
+
+        return platform;
     }
 
     spawnCollectible(x, y) {
