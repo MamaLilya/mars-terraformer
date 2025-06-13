@@ -35,6 +35,14 @@ class GameScene extends Phaser.Scene {
         this.BASE_PLATFORM_SPEED = 2 * 60; // 2 pixels per frame scaled to Phaser's 60fps
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
+        // Jump state flags
+        this.jumping = false;        // True when player is in first jump
+        this.onPlatform = false;     // True when player is standing on a platform
+        this.canDoubleJump = false;  // True after first jump, before double jump
+        this.hasDoubleJumped = false;// True after double jump
+        this.lastJumpTime = 0;       // Time of last jump for double jump window
+        this.doubleJumpWindow = 300; // 0.3 seconds window for double jump
+        
         // Platform spawn settings
         this.MIN_PLATFORM_Y = 300;
         this.MAX_PLATFORM_Y = 500;
@@ -66,12 +74,6 @@ class GameScene extends Phaser.Scene {
         this.player = this.physics.add.sprite(this.PLAYER_X, 400, 'player');
         this.player.body.setGravityY(this.GRAVITY);
         this.player.body.setCollideWorldBounds(false);
-        
-        // Jump state
-        this.lastJumpTime = 0;
-        this.canDoubleJump = false;
-        this.doubleJumpWindow = 300; // 0.3 seconds for double jump
-        this.hasDoubleJumped = false;
         
         // Spawn second platform
         this.lastPlatformX = 500;
@@ -119,6 +121,19 @@ class GameScene extends Phaser.Scene {
             this.handleJump(time);
         }
 
+        // Update onPlatform state based on collision
+        if (this.player.body.touching.down || this.player.body.blocked.down) {
+            if (!this.onPlatform) {
+                this.onPlatform = true;
+                this.jumping = false;
+                this.canDoubleJump = false;
+                this.hasDoubleJumped = false;
+                this.player.setTint(0x00aaff);
+            }
+        } else {
+            this.onPlatform = false;
+        }
+
         // Check for game over
         if (this.player.y > 600) {
             this.loseLife();
@@ -151,18 +166,19 @@ class GameScene extends Phaser.Scene {
     handleJump(time) {
         if (!this.player || !this.player.body) return;
         
-        const onGround = this.player.body.touching.down || this.player.body.blocked.down;
-        
-        if (onGround) {
-            // First jump
+        // First jump only when standing on platform and not already jumping
+        if (this.onPlatform && !this.jumping) {
             this.player.body.velocity.y = this.JUMP_FORCE;
-            this.lastJumpTime = time;
+            this.jumping = true;
+            this.onPlatform = false;
             this.canDoubleJump = true;
             this.hasDoubleJumped = false;
+            this.lastJumpTime = time;
             this.player.setTint(0x00ff00);
-        } else if (this.canDoubleJump && !this.hasDoubleJumped && 
-                  time - this.lastJumpTime <= this.doubleJumpWindow) {
-            // Double jump within 0.3 seconds
+        } 
+        // Double jump only during jump window and if not already used
+        else if (this.jumping && this.canDoubleJump && !this.hasDoubleJumped && 
+                 time - this.lastJumpTime <= this.doubleJumpWindow) {
             this.player.body.velocity.y = this.JUMP_FORCE;
             this.hasDoubleJumped = true;
             this.canDoubleJump = false;
@@ -222,9 +238,12 @@ class GameScene extends Phaser.Scene {
     }
 
     onPlatformCollide(player, platform) {
-        // Only count landing if we're coming from above
+        // Only handle collision if player is falling onto platform
         if (player.body.velocity.y > 0) {
+            // Reset jump state
             player.body.velocity.y = 0;
+            this.jumping = false;
+            this.onPlatform = true;
             this.canDoubleJump = false;
             this.hasDoubleJumped = false;
             player.setTint(0x00aaff);
