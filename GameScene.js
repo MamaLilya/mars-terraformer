@@ -62,9 +62,6 @@ class GameScene extends Phaser.Scene {
         });
         this.collectibles = this.physics.add.staticGroup();
         
-        // Create starting platform
-        const startPlatform = this.spawnPlatform(100, 450, 300);
-        
         // Create player sprite and enable physics
         const graphics = this.add.graphics();
         graphics.fillStyle(0x00aaff);
@@ -72,21 +69,23 @@ class GameScene extends Phaser.Scene {
         graphics.generateTexture('player', 40, 60);
         graphics.destroy();
      
-        this.player = this.physics.add.sprite(this.PLAYER_X, 400, 'player');
-        this.player.body.setCollideWorldBounds(false);
-        // Ensure player body matches sprite
-        this.player.body.setSize(40, 60, true);
-        this.player.body.setOffset(0, 0);
+        this.player = this.physics.add.sprite(this.PLAYER_X, 300, 'player');
+        this.player.setBounce(0);
+        this.player.setCollideWorldBounds(true);
+        // Set player physics properties
+        this.player.body.setGravityY(this.GRAVITY);
+        this.player.body.setSize(32, 32, true);
         
-        // Align player so body bottom == platform body top
-        // platform.y is the center of the platform sprite
-        // platform.body.top = platform.y - platform.displayHeight/2
-        // player.body.bottom = player.y + player.displayHeight/2
-        this.player.y = startPlatform.y - startPlatform.displayHeight / 2 - this.player.displayHeight / 2 + 1; // +1 for safe overlap
-        this.player.body.updateFromGameObject();
-        this.physics.world.step(0);
-        this.onPlatform = true;
-        this.jumping = false;
+        // Create starting platform
+        const startPlatform = this.spawnPlatform(100, 400, 200);
+        // Position player on starting platform, aligned with platform body top
+        this.player.y = startPlatform.body.top - this.player.displayHeight / 2 + 1;
+        console.log('Initial player position:', {
+            x: this.player.x,
+            y: this.player.y,
+            platformTop: startPlatform.body.top,
+            platformY: startPlatform.y
+        });
         
         // Spawn second platform
         this.lastPlatformX = 500;
@@ -243,10 +242,14 @@ class GameScene extends Phaser.Scene {
                 width: platform.displayWidth
             });
             player.body.velocity.y = 0;
+            // Force-align player Y to platform body top
+            player.y = platform.body.top - player.displayHeight / 2 + 1;
+            player.body.updateFromGameObject();
             this.jumping = false;
             this.doubleJumpAvailable = false;
             this.justJumped = false;
             player.setTint(0x00aaff);
+            console.log('Aligning player after landing: player.y =', player.y, 'platform.body.top =', platform.body.top);
             // Count landing for score if it's a new platform
             if (platform.x > this.PLAYER_X - 50) {
                 this.platformsLanded++;
@@ -273,9 +276,9 @@ class GameScene extends Phaser.Scene {
         // Ensure proper physics settings
         platform.setImmovable(true);
         platform.body.allowGravity = false;
-        // Make platform body thicker and offset down
-        platform.body.setSize(width, 40, true);  // Thicker
-        platform.body.setOffset(0, -10);         // Top flush, bottom extends below
+        // Set body to match sprite exactly
+        platform.body.setSize(width, 20, true);
+        platform.body.setOffset(0, 0);
         // Log platform position and width
         console.log('Spawned platform:', {x, y, width});
         // 70% chance to spawn a collectible
