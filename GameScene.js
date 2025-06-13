@@ -23,11 +23,10 @@ class GameScene extends Phaser.Scene {
         this.platformsLanded = 0;
         this.nextLevelAt = 30; // Level up every 30 platforms
 
-        // Input setup - bind SPACE and other controls
+        // Input setup - using cursors for consistent input handling
         this.cursors = this.input.keyboard.createCursorKeys();
-        this.input.keyboard.on('keydown-SPACE', () => {
-            this.handleJump();
-        }, this);
+        
+        // Touch/click input for mobile support
         this.input.on('pointerdown', () => {
             this.handleJump();
         });
@@ -57,8 +56,11 @@ class GameScene extends Phaser.Scene {
         // Configure physics
         this.physics.world.gravity.y = this.GRAVITY;
         
-        // Create static platforms group
-        this.platforms = this.physics.add.staticGroup();
+        // Create dynamic platforms group - better for moving platforms
+        this.platforms = this.physics.add.group({
+            allowGravity: false,
+            immovable: true
+        });
         this.collectibles = this.physics.add.staticGroup();
         
         // Create starting platform
@@ -138,8 +140,9 @@ class GameScene extends Phaser.Scene {
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
 
-        // Handle jump input from up arrow
-        if (Phaser.Input.Keyboard.JustDown(this.cursors.up)) {
+        // Handle jump input from space or up arrow
+        if (Phaser.Input.Keyboard.JustDown(this.cursors.space) || 
+            Phaser.Input.Keyboard.JustDown(this.cursors.up)) {
             this.handleJump();
         }
 
@@ -220,8 +223,12 @@ class GameScene extends Phaser.Scene {
             graphics.destroy();
         }
         
-        // Create static platform sprite
+        // Create platform sprite in the dynamic group
         const platform = this.platforms.create(x, y, 'platform_' + width);
+        
+        // Ensure proper physics settings
+        platform.setImmovable(true);
+        platform.body.allowGravity = false;
         
         // 70% chance to spawn a collectible
         if (Math.random() < 0.7) {
