@@ -80,10 +80,12 @@ class GameScene extends Phaser.Scene {
         this.player.body.setSize(40, 60, true);
         this.player.body.setOffset(0, 0);
         
-        // Place player exactly on top of the start platform
-        this.player.y = startPlatform.y - this.player.displayHeight / 2;
+        // Align player so body bottom == platform body top
+        // platform.y is the center of the platform sprite
+        // platform.body.top = platform.y - platform.displayHeight/2
+        // player.body.bottom = player.y + player.displayHeight/2
+        this.player.y = startPlatform.y - startPlatform.displayHeight / 2 - this.player.displayHeight / 2 + 1; // +1 for safe overlap
         this.player.body.updateFromGameObject();
-        // Force a physics step to update collision state
         this.physics.world.step(0);
         this.onPlatform = true;
         this.jumping = false;
@@ -226,9 +228,9 @@ class GameScene extends Phaser.Scene {
         platform.setImmovable(true);
         platform.body.allowGravity = false;
         
-        // Set body height to 30px and offset so top is flush with sprite
-        platform.body.setSize(width, 30, true);
-        platform.body.setOffset(0, -10); // 10px above the sprite, so top is flush
+        // Set body height to 20px and offset to 0 (flush with sprite)
+        platform.body.setSize(width, 20, true);
+        platform.body.setOffset(0, 0);
         
         // 70% chance to spawn a collectible
         if (Math.random() < 0.7) {
