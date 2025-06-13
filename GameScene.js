@@ -34,8 +34,8 @@ class GameScene extends Phaser.Scene {
 
         // Constants matching Pygame values
         this.PLAYER_X = 100;
-        this.GRAVITY = 60;       // ~0.8 per frame in Phaser terms
-        this.JUMP_FORCE = -15;   // Direct Pygame value
+        this.GRAVITY = 1000;       // Standard Phaser gravity
+        this.JUMP_FORCE = -400;    // Standard Phaser jump force
         this.BASE_PLATFORM_SPEED = 2 * 60; // Platform speed still needs fps scaling
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
@@ -75,7 +75,6 @@ class GameScene extends Phaser.Scene {
         graphics.destroy();
      
         this.player = this.physics.add.sprite(this.PLAYER_X, 400, 'player');
-        this.player.body.setGravityY(this.GRAVITY);
         this.player.body.setCollideWorldBounds(false);
         // Ensure player body matches sprite
         this.player.body.setSize(40, 60, true);
