@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terraformation Phaser Game</title>
+    <style>
+        body { margin: 0; padding: 0; background: #222; }
+        #game-container { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+    <!-- Load Phaser from CDN first -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.js"></script>
+    <!-- Load all scene files in order, before main.js -->
+    <script src="MainMenu.js"></script>
+    <script src="WorldMap.js"></script>
+    <script src="Station.js"></script>
+    <script src="GameScene.js"></script>
+    <script src="GameOver.js"></script>
+    <!-- Load main.js last -->
+    <script src="main.js"></script>
+</body>
+</html> 
