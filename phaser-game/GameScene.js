@@ -226,33 +226,36 @@ class GameScene extends Phaser.Scene {
         if (this.lastPlatformX < 900) {
             this.spawnNextPlatform();
         }
-        // Optional snap backup for safety:
-        for (let i = 0; i < platforms.length; i++) {
-            const platform = platforms[i];
-            const horizontalOverlap = 
-                this.player.body.right > platform.body.left &&
-                this.player.body.left < platform.body.right;
-            const verticalDistance = Math.abs(this.player.body.bottom - platform.body.top);
-            
-            if (!this.onPlatform && horizontalOverlap && verticalDistance <= 20 && this.player.body.velocity.y >= 0) {
-                // Snap player to platform
-                this.player.body.velocity.y = 0;
-                this.player.y = platform.body.top - this.player.displayHeight / 2 + 1;
-                this.player.body.updateFromGameObject();
-                this.jumping = false;
-                this.doubleJumpAvailable = false;
-                this.player.setTint(0x00aaff);
-                this.onPlatform = true;
-                this.justSnapped = true; // Set justSnapped flag
-                console.log('Backup snap landing triggered', {
-                    playerLeft: this.player.body.left,
-                    playerRight: this.player.body.right,
-                    platformLeft: platform.body.left,
-                    platformRight: platform.body.right,
-                    verticalDistance: verticalDistance
-                });
-                break;
-            }
+        // Backup snap logic - only if we're falling and not on a platform
+        if (this.player.body.velocity.y > 0 && !this.onPlatform) {
+            // Check each platform for potential snap
+            this.platforms.getChildren().forEach(platform => {
+                // Get exact positions for overlap check
+                const playerLeft = this.player.body.left;
+                const playerRight = this.player.body.right;
+                const platformLeft = platform.body.left;
+                const platformRight = platform.body.right;
+                
+                // Strict horizontal overlap check
+                const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
+                
+                // Calculate vertical distance to platform
+                const verticalDistance = platform.body.top - this.player.body.bottom;
+                
+                // Only snap if we have both horizontal overlap and are within vertical range
+                if (horizontalOverlap && verticalDistance > 0 && verticalDistance <= 20) {
+                    console.log(`Backup snap → player.left: ${playerLeft}, player.right: ${playerRight}, platform.left: ${platformLeft}, platform.right: ${platformRight}`);
+                    console.log(`Backup snap → verticalDistance: ${verticalDistance}`);
+                    
+                    // Snap to platform
+                    this.player.setPosition(this.player.x, platform.body.top - this.player.body.height/2);
+                    this.player.body.setVelocityY(0);
+                    this.onPlatform = true;
+                    this.jumping = false;
+                    this.doubleJumpAvailable = false;
+                    this.justSnapped = true;
+                }
+            });
         }
     }
 
