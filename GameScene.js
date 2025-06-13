@@ -206,11 +206,11 @@ class GameScene extends Phaser.Scene {
     onPlayerLanding(player, platform) {
         // Loosen landing check margin
         if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 15) {
-            if (this.justJumped) return; // Don't reset velocity if just jumped
             console.log('Landing on platform');
             player.body.velocity.y = 0;
             this.jumping = false;
             this.doubleJumpAvailable = false;
+            this.justJumped = false;
             player.setTint(0x00aaff);
             // Count landing for score if it's a new platform
             if (platform.x > this.PLAYER_X - 50) {
