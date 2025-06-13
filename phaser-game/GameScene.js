@@ -164,57 +164,54 @@ class GameScene extends Phaser.Scene {
     update() {
         if (!this.player?.body) return;
 
-        // Check for falling below screen
         if (this.player.y > this.physics.world.bounds.height + 100) {
             console.log('GAME OVER - Player fell off screen');
             this.loseLife();
             return;
         }
 
-        // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
 
-        // Skip updating if we just snapped
         if (this.justSnapped) {
             this.justSnapped = false;
             return;
         }
 
-        // Reset platform state
         this.onPlatform = false;
 
-        // Check each platform for landing or potential snap
         this.platforms.getChildren().forEach(platform => {
-            // Get exact positions for overlap check
             const playerLeft = this.player.body.left;
             const playerRight = this.player.body.right;
             const platformLeft = platform.body.left;
             const platformRight = platform.body.right;
             
-            // Strict horizontal overlap check
             const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
             
             if (horizontalOverlap) {
-                // Check for normal landing
                 if (this.player.body.touching.down && this.player.body.blocked.down) {
                     if (this.player.body.bottom <= platform.body.top + 5) {
                         this.onPlatform = true;
+                        this.jumping = false;
+                        this.doubleJumpAvailable = false;
+                        this.player.body.velocity.y = 0;
                     }
                 }
-                // Check for backup snap
                 else if (!this.onPlatform && this.player.body.velocity.y >= 0) {
                     const verticalDistance = platform.body.top - this.player.body.bottom;
                     if (verticalDistance > 0 && verticalDistance <= 25) {
-                        console.log(`Backup snap → verticalDistance: ${verticalDistance}`);
+                        console.log(`Backup snap → verticalDistance: ${verticalDistance}, playerY: ${this.player.y}, platformTop: ${platform.body.top}`);
                         
-                        // Snap to platform
+                        // Snap to platform and reset all states
                         this.player.setPosition(this.player.x, platform.body.top - this.player.body.height/2);
-                        this.player.body.setVelocityY(0);
+                        this.player.body.velocity.y = 0;
+                        this.player.body.updateFromGameObject();
                         this.onPlatform = true;
                         this.jumping = false;
                         this.doubleJumpAvailable = false;
                         this.justSnapped = true;
+                        
+                        console.log(`After snap → playerY: ${this.player.y}, velocityY: ${this.player.body.velocity.y}, onPlatform: ${this.onPlatform}`);
                     }
                 }
             }
@@ -223,7 +220,7 @@ class GameScene extends Phaser.Scene {
         // Log player state
         console.log('Update frame → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y, 'onPlatform:', this.onPlatform);
         if (this.onPlatform) {
-            console.log(`Stable on platform → player.body.bottom: ${this.player.body.bottom}`);
+            console.log(`Stable on platform → player.y: ${this.player.y}, platform.body.top: ${this.platforms.getChildren()[0].body.top}`);
         }
 
         // Move platforms using physics velocity only
