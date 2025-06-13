@@ -242,10 +242,9 @@ class GameScene extends Phaser.Scene {
                 // Calculate vertical distance to platform
                 const verticalDistance = platform.body.top - this.player.body.bottom;
                 
-                // Only snap if we have both horizontal overlap and are within vertical range
-                if (horizontalOverlap && verticalDistance > 0 && verticalDistance <= 20) {
-                    console.log(`Backup snap → player.left: ${playerLeft}, player.right: ${playerRight}, platform.left: ${platformLeft}, platform.right: ${platformRight}`);
-                    console.log(`Backup snap → verticalDistance: ${verticalDistance}`);
+                // Single strict condition check for snap
+                if (!this.onPlatform && horizontalOverlap && verticalDistance <= 20 && this.player.body.velocity.y >= 0) {
+                    console.log(`Backup snap → player.left: ${playerLeft}, player.right: ${playerRight}, platform.left: ${platformLeft}, platform.right: ${platformRight}, verticalDistance: ${verticalDistance}`);
                     
                     // Snap to platform
                     this.player.setPosition(this.player.x, platform.body.top - this.player.body.height/2);
