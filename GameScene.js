@@ -49,16 +49,10 @@ class GameScene extends Phaser.Scene {
         this.physics.world.setBoundsCollision(false, false, false, false);
         this.physics.world.gravity.y = this.GRAVITY;
         
-        // Create groups
-        this.platforms = this.physics.add.group({ 
-            allowGravity: false,
-            immovable: true
-        });
-        this.collectibles = this.physics.add.group({ 
-            allowGravity: false,
-            immovable: true
-        });
-
+        // Create groups with proper physics settings
+        this.platforms = this.physics.add.staticGroup();
+        this.collectibles = this.physics.add.staticGroup();
+        
         // Initial platform
         const startPlatform = this.spawnPlatform(100, 450, 300); // Starting platform
         
@@ -78,17 +72,25 @@ class GameScene extends Phaser.Scene {
         this.lastPlatformX = 500;
         this.spawnPlatform(this.lastPlatformX, randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y), 200);
         
-        // Collisions
-        this.physics.add.collider(this.player, this.platforms, this.onPlatformCollide, null, this);
-        this.physics.add.overlap(this.player, this.collectibles, this.collectItem, null, this);
+        // Set up collisions
+        this.physics.add.collider(
+            this.player, 
+            this.platforms,
+            this.onPlatformCollide,
+            null,
+            this
+        );
+        
+        this.physics.add.overlap(
+            this.player,
+            this.collectibles,
+            this.collectItem,
+            null,
+            this
+        );
         
         // UI
         this.setupUI();
-
-        // Lock player X position
-        this.player.body.setAllowGravity(true);
-        this.player.body.setVelocityX(0);
-        this.player.body.setImmovable(true);
 
         // Platform spawn timer
         this.time.addEvent({
@@ -124,6 +126,9 @@ class GameScene extends Phaser.Scene {
         for (let i = platforms.length - 1; i >= 0; i--) {
             const platform = platforms[i];
             platform.x -= moveAmount;
+            platform.body.x = platform.x - platform.width / 2;
+            platform.body.updateFromGameObject();
+            
             if (platform.x < -100) {
                 platform.destroy();
             }
@@ -133,6 +138,9 @@ class GameScene extends Phaser.Scene {
         for (let i = collectibles.length - 1; i >= 0; i--) {
             const collectible = collectibles[i];
             collectible.x -= moveAmount;
+            collectible.body.x = collectible.x - collectible.width / 2;
+            collectible.body.updateFromGameObject();
+            
             if (collectible.x < -50) {
                 collectible.destroy();
             }
@@ -170,10 +178,18 @@ class GameScene extends Phaser.Scene {
     }
 
     spawnPlatform(x, y, width) {
+        // Create platform with proper physics body
         const platform = this.add.rectangle(x, y, width, 20, 0x888888);
-        this.physics.add.existing(platform);
         this.platforms.add(platform);
-
+        
+        // Ensure platform has correct physics properties
+        platform.body.setImmovable(true);
+        platform.body.moves = false;
+        platform.body.allowGravity = false;
+        platform.body.checkCollision.down = false;
+        platform.body.checkCollision.left = false;
+        platform.body.checkCollision.right = false;
+        
         // 70% chance to spawn a collectible
         if (Math.random() < 0.7) {
             this.spawnCollectible(x, y - 40);
@@ -203,21 +219,21 @@ class GameScene extends Phaser.Scene {
     }
 
     onPlatformCollide(player, platform) {
-        if (!player.body.touching.down) return;
-        
-        // Reset jump state on landing
-        this.canDoubleJump = false;
-        this.hasDoubleJumped = false;
-        this.player.setFillStyle(0x00aaff);
-        
-        // Count successful landing
-        if (platform.x > this.PLAYER_X - 50) { // Only count if landing on new platform
-            this.platformsLanded++;
-            this.score += 10;
-            this.scoreText.setText(`Score: ${this.score}`);
+        // Only count landing if we're coming from above
+        if (player.body.velocity.y > 0) {
+            player.body.velocity.y = 0;
+            this.canDoubleJump = false;
+            this.hasDoubleJumped = false;
             
-            if (this.platformsLanded >= this.nextLevelAt) {
-                this.levelUp();
+            // Count landing for score if it's a new platform
+            if (platform.x > this.PLAYER_X - 50) {
+                this.platformsLanded++;
+                this.score += 10;
+                this.scoreText.setText(`Score: ${this.score}`);
+                
+                if (this.platformsLanded >= this.nextLevelAt) {
+                    this.levelUp();
+                }
             }
         }
     }
