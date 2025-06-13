@@ -76,10 +76,15 @@ class GameScene extends Phaser.Scene {
         this.player = this.physics.add.sprite(this.PLAYER_X, 400, 'player');
         this.player.body.setGravityY(this.GRAVITY);
         this.player.body.setCollideWorldBounds(false);
+        // Ensure player body matches sprite
+        this.player.body.setSize(40, 60, true);
+        this.player.body.setOffset(0, 0);
         
         // Place player exactly on top of the start platform
         this.player.y = startPlatform.y - this.player.displayHeight / 2;
         this.player.body.updateFromGameObject();
+        // Force a physics step to update collision state
+        this.physics.world.step(0);
         this.onPlatform = true;
         this.jumping = false;
         
