@@ -23,6 +23,7 @@ class GameScene extends Phaser.Scene {
         this.platformsLanded = 0;
         this.nextLevelAt = 30; // Level up every 30 platforms
         this.gameOver = false; // Add game over flag
+        this.justJumped = false;
 
         // Input setup - SPACE key only for jumping
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -137,6 +138,7 @@ class GameScene extends Phaser.Scene {
             this.onPlatform = false;
             this.doubleJumpAvailable = true;
             this.player.setTint(0x00ff00);
+            this.justJumped = true;
         }
         // Double jump: only when in air, already jumping, and double jump available
         else if (!this.onPlatform && this.jumping && this.doubleJumpAvailable) {
@@ -144,6 +146,7 @@ class GameScene extends Phaser.Scene {
             this.player.body.velocity.y = this.JUMP_FORCE;
             this.doubleJumpAvailable = false;
             this.player.setTint(0xffff00);
+            this.justJumped = true;
         }
     }
 
@@ -152,6 +155,9 @@ class GameScene extends Phaser.Scene {
 
         // Use physics to determine if player is on a platform
         this.onPlatform = this.player.body.touching.down || this.player.body.blocked.down;
+
+        // Reset justJumped after physics step
+        if (this.justJumped) this.justJumped = false;
 
         // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
@@ -194,6 +200,7 @@ class GameScene extends Phaser.Scene {
     onPlayerLanding(player, platform) {
         // Loosen landing check margin
         if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 15) {
+            if (this.justJumped) return; // Don't reset velocity if just jumped
             console.log('Landing on platform');
             player.body.velocity.y = 0;
             this.jumping = false;
