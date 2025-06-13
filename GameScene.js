@@ -77,6 +77,12 @@ class GameScene extends Phaser.Scene {
         this.player.body.setGravityY(this.GRAVITY);
         this.player.body.setCollideWorldBounds(false);
         
+        // Place player exactly on top of the start platform
+        this.player.y = startPlatform.y - this.player.displayHeight / 2;
+        this.player.body.updateFromGameObject();
+        this.onPlatform = true;
+        this.jumping = false;
+        
         // Spawn second platform
         this.lastPlatformX = 500;
         this.spawnPlatform(this.lastPlatformX, randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y), 200);
@@ -176,8 +182,8 @@ class GameScene extends Phaser.Scene {
     }
 
     onPlayerLanding(player, platform) {
-        // Only set landing state if player is falling and feet are above platform
-        if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 10) {
+        // Loosen landing check margin
+        if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 15) {
             console.log('Landing on platform');
             player.body.velocity.y = 0;
             this.jumping = false;
