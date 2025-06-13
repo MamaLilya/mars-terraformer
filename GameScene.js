@@ -5,6 +5,15 @@ class GameScene extends Phaser.Scene {
         super('GameScene');
     }
 
+    preload() {
+        // Create a simple circle texture for particles
+        const graphics = this.add.graphics();
+        graphics.fillStyle(0xffffff);
+        graphics.fillCircle(4, 4, 4);
+        graphics.generateTexture('particle', 8, 8);
+        graphics.destroy();
+    }
+
     create() {
         // Game state
         this.level = window.SHARED.level;
@@ -219,16 +228,25 @@ class GameScene extends Phaser.Scene {
         this.scoreText.setText(`Score: ${this.score}`);
         this.resText.setText(this.resString());
         
-        const particles = this.add.particles(collectible.x, collectible.y, {
+        // Create a one-time particle burst effect
+        const particles = this.add.particles(0, 0, 'particle', {
             speed: 100,
             scale: { start: 1, end: 0 },
             blendMode: 'ADD',
-            lifespan: 500
+            lifespan: 500,
+            gravityY: 0,
+            quantity: 1,
+            frequency: 50,
+            emitting: false
         });
-        particles.createEmitter({
-            tint: collectible.fillColor
+        
+        particles.setPosition(collectible.x, collectible.y);
+        particles.start();
+        
+        // Clean up particles after animation
+        this.time.delayedCall(500, () => {
+            particles.destroy();
         });
-        setTimeout(() => particles.destroy(), 500);
         
         collectible.destroy();
     }
