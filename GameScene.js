@@ -23,13 +23,12 @@ class GameScene extends Phaser.Scene {
         this.platformsLanded = 0;
         this.nextLevelAt = 30; // Level up every 30 platforms
 
-        // Input setup - using cursors for consistent input handling
+        // Input setup - SPACE key only for jumping
         this.cursors = this.input.keyboard.createCursorKeys();
+        this.input.keyboard.on('keydown-SPACE', this.handleJump, this);
         
         // Touch/click input for mobile support
-        this.input.on('pointerdown', () => {
-            this.handleJump();
-        });
+        this.input.on('pointerdown', this.handleJump, this);
 
         // Constants matching Pygame values
         this.PLAYER_X = 100;
@@ -103,30 +102,18 @@ class GameScene extends Phaser.Scene {
     }
 
     handleJump() {
-        // Debug logging to check state
-        console.log('Jump attempted:', {
-            playerExists: !!this.player,
-            bodyExists: !!(this.player && this.player.body),
-            onPlatform: this.onPlatform,
-            jumping: this.jumping,
-            doubleJumpAvailable: this.doubleJumpAvailable,
-            velocity: this.player?.body?.velocity?.y
-        });
-
         if (!this.player?.body) return;
         
-        // First jump: only when on platform and not already jumping
-        if (!this.jumping && this.onPlatform) {
-            console.log('First jump triggered');
+        // First jump: only when on platform and not jumping
+        if (this.onPlatform && !this.jumping) {
             this.player.body.velocity.y = this.JUMP_FORCE;
             this.jumping = true;
             this.onPlatform = false;
             this.doubleJumpAvailable = true;
             this.player.setTint(0x00ff00);
         }
-        // Double jump: only once while in the air after first jump
-        else if (this.jumping && this.doubleJumpAvailable) {
-            console.log('Double jump triggered');
+        // Double jump: only when in air, already jumping, and double jump available
+        else if (!this.onPlatform && this.jumping && this.doubleJumpAvailable) {
             this.player.body.velocity.y = this.JUMP_FORCE;
             this.doubleJumpAvailable = false;
             this.player.setTint(0xffff00);
@@ -139,11 +126,6 @@ class GameScene extends Phaser.Scene {
         // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
-
-        // Handle jump input - check if keys are down
-        if (this.cursors.space.isDown || this.cursors.up.isDown) {
-            this.handleJump();
-        }
 
         // Check for game over
         if (this.player.y > 600) {
