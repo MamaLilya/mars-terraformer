@@ -44,9 +44,12 @@ class GameScene extends Phaser.Scene {
         this.onPlatform = false;        // True only when standing on platform
         this.doubleJumpAvailable = false; // True after first jump, false after using double jump
         
-        // Platform generation constants
-        this.MIN_PLATFORM_Y = 300;
-        this.MAX_PLATFORM_Y = 500;
+        // Platform generation constants - adjusted to match jump height
+        // Calculate max jump height based on physics
+        // h = (v0^2) / (2g) where v0 is initial velocity (JUMP_FORCE)
+        const maxJumpHeight = (this.JUMP_FORCE * this.JUMP_FORCE) / (2 * this.GRAVITY);
+        this.MIN_PLATFORM_Y = 300;  // Keep minimum height reasonable
+        this.MAX_PLATFORM_Y = Math.min(500, 400 + maxJumpHeight * 0.8); // Ensure platforms are reachable
         this.lastPlatformX = 0;
      
         // Background
@@ -158,6 +161,15 @@ class GameScene extends Phaser.Scene {
 
     update() {
         if (!this.player?.body) return;
+
+        // Check for falling below screen
+        const fallThreshold = this.cameras.main.height + 100;
+        if (this.player.y > fallThreshold) {
+            console.log('Player fell below screen — losing life');
+            this.loseLife();
+            return; // stop further update for this frame
+        }
+
         // Skip updating onPlatform if we just snapped
         if (this.justSnapped) {
             this.justSnapped = false;
@@ -217,9 +229,12 @@ class GameScene extends Phaser.Scene {
         // Optional snap backup for safety:
         for (let i = 0; i < platforms.length; i++) {
             const platform = platforms[i];
-            const overlapHorizontally = Math.abs(this.player.x - platform.x) < platform.displayWidth / 2;
+            const horizontalOverlap = 
+                this.player.body.right > platform.body.left &&
+                this.player.body.left < platform.body.right;
             const verticalDistance = Math.abs(this.player.body.bottom - platform.body.top);
-            if (!this.onPlatform && overlapHorizontally && verticalDistance <= 20 && this.player.body.velocity.y >= 0) {
+            
+            if (!this.onPlatform && horizontalOverlap && verticalDistance <= 20 && this.player.body.velocity.y >= 0) {
                 // Snap player to platform
                 this.player.body.velocity.y = 0;
                 this.player.y = platform.body.top - this.player.displayHeight / 2 + 1;
@@ -229,7 +244,13 @@ class GameScene extends Phaser.Scene {
                 this.player.setTint(0x00aaff);
                 this.onPlatform = true;
                 this.justSnapped = true; // Set justSnapped flag
-                console.log('Backup snap landing triggered');
+                console.log('Backup snap landing triggered', {
+                    playerLeft: this.player.body.left,
+                    playerRight: this.player.body.right,
+                    platformLeft: platform.body.left,
+                    platformRight: platform.body.right,
+                    verticalDistance: verticalDistance
+                });
                 break;
             }
         }
