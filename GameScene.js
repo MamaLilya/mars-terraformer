@@ -123,8 +123,8 @@ class GameScene extends Phaser.Scene {
         const t_apex = -this.JUMP_FORCE / this.GRAVITY;
         const t_total = 2 * t_apex;
         this.maxJumpDistance = this.platformSpeed * t_total;
-        this.MIN_PLATFORM_GAP = Math.floor(this.maxJumpDistance * 0.5);
-        this.MAX_PLATFORM_GAP = Math.floor(this.maxJumpDistance * 0.85);
+        this.MIN_PLATFORM_GAP = 80;
+        this.MAX_PLATFORM_GAP = 150;
     }
 
     handleJump() {
@@ -285,7 +285,6 @@ class GameScene extends Phaser.Scene {
         this.score += 50;
         this.scoreText.setText(`Score: ${this.score}`);
         this.resText.setText(this.resString());
-        
         // Create a one-time particle burst effect
         const particles = this.add.particles(0, 0, 'particle', {
             speed: 100,
@@ -297,20 +296,18 @@ class GameScene extends Phaser.Scene {
             frequency: 50,
             emitting: false
         });
-        
         particles.setPosition(collectible.x, collectible.y);
         particles.start();
-        
         // Clean up particles after animation
         this.time.delayedCall(500, () => {
             particles.destroy();
         });
-        
-        collectible.destroy();
+        // Make collectible disappear
+        collectible.disableBody(true, true);
     }
 
     spawnNextPlatform() {
-        // Use updated MIN/MAX gap based on physics
+        // Use fixed safe MIN/MAX gap
         const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
         this.lastPlatformX = Math.max(850, this.lastPlatformX + gap);
         this.spawnPlatform(
