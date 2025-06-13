@@ -23,10 +23,14 @@ class GameScene extends Phaser.Scene {
         this.platformsLanded = 0;
         this.nextLevelAt = 30; // Level up every 30 platforms
 
-        // Input setup
+        // Input setup - bind SPACE and other controls
         this.cursors = this.input.keyboard.createCursorKeys();
-        this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-        this.input.on('pointerdown', () => this.handleJump());
+        this.input.keyboard.on('keydown-SPACE', () => {
+            this.handleJump();
+        }, this);
+        this.input.on('pointerdown', () => {
+            this.handleJump();
+        });
 
         // Constants matching Pygame values
         this.PLAYER_X = 100;
@@ -36,9 +40,9 @@ class GameScene extends Phaser.Scene {
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
         // Jump state flags
-        this.jumping = false;           // True when player is in first jump or double jump
-        this.onPlatform = false;        // True when player is standing on a platform
-        this.doubleJumpAvailable = false; // True after first jump, false after double jump
+        this.jumping = false;           // True when in any jump (first or double)
+        this.onPlatform = false;        // True only when standing on platform
+        this.doubleJumpAvailable = false; // True after first jump, false after using double jump
         
         // Platform spawn settings
         this.MIN_PLATFORM_Y = 300;
@@ -103,68 +107,69 @@ class GameScene extends Phaser.Scene {
             callbackScope: this,
             loop: true
         });
+
+        // Set initial state
+        this.onPlatform = true;
+        console.log('Game initialized:', {
+            playerExists: !!this.player,
+            bodyExists: !!(this.player && this.player.body),
+            onPlatform: this.onPlatform,
+            jumping: this.jumping
+        });
     }
 
     handleJump() {
-        if (!this.player || !this.player.body) return;
+        // Debug logging to check state
+        console.log('Jump attempted:', {
+            playerExists: !!this.player,
+            bodyExists: !!(this.player && this.player.body),
+            onPlatform: this.onPlatform,
+            jumping: this.jumping,
+            doubleJumpAvailable: this.doubleJumpAvailable,
+            velocity: this.player?.body?.velocity?.y
+        });
+
+        if (!this.player?.body) return;
         
         // First jump: only when on platform and not already jumping
         if (!this.jumping && this.onPlatform) {
-            // Initiate first jump
+            console.log('First jump triggered');
             this.player.body.velocity.y = this.JUMP_FORCE;
             this.jumping = true;
             this.onPlatform = false;
-            this.doubleJumpAvailable = true;  // Enable double jump
+            this.doubleJumpAvailable = true;
             this.player.setTint(0x00ff00);
         }
         // Double jump: only once while in the air after first jump
         else if (this.jumping && this.doubleJumpAvailable) {
+            console.log('Double jump triggered');
             this.player.body.velocity.y = this.JUMP_FORCE;
-            this.doubleJumpAvailable = false;  // Prevent further jumps
-            this.player.setTint(0xffff00);
-        }
-        // In all other cases, jump is not allowed
-    }
-
-    onPlatformCollide(player, platform) {
-        // Only handle collision if player is falling onto platform
-        if (player.body.velocity.y > 0) {
-            // Reset all jump states on landing
-            player.body.velocity.y = 0;
-            this.jumping = false;
-            this.onPlatform = true;
             this.doubleJumpAvailable = false;
-            player.setTint(0x00aaff);
-            
-            // Count landing for score if it's a new platform
-            if (platform.x > this.PLAYER_X - 50) {
-                this.platformsLanded++;
-                this.score += 10;
-                this.scoreText.setText(`Score: ${this.score}`);
-                
-                if (this.platformsLanded >= this.nextLevelAt) {
-                    this.levelUp();
-                }
-            }
+            this.player.setTint(0xffff00);
         }
     }
 
     update() {
-        if (!this.player || !this.player.body) return;
-        
+        if (!this.player?.body) return;
+
         // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
 
-        // Handle jump input
-        if (Phaser.Input.Keyboard.JustDown(this.cursors.up) || 
-            Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-            this.handleJump();
+        // Update platform state BEFORE handling jump input
+        const touchingGround = this.player.body.touching.down || this.player.body.blocked.down;
+        if (touchingGround && !this.onPlatform) {
+            this.onPlatform = true;
+            this.jumping = false;
+            this.doubleJumpAvailable = false;
+            this.player.setTint(0x00aaff);
+        } else if (!touchingGround) {
+            this.onPlatform = false;
         }
 
-        // Update onPlatform state based on collision
-        if (!this.player.body.touching.down && !this.player.body.blocked.down) {
-            this.onPlatform = false;
+        // Handle jump input from up arrow
+        if (Phaser.Input.Keyboard.JustDown(this.cursors.up)) {
+            this.handleJump();
         }
 
         // Check for game over
@@ -192,6 +197,35 @@ class GameScene extends Phaser.Scene {
             collectible.x -= moveAmount;
             if (collectible.x < -50) {
                 collectible.destroy();
+            }
+        }
+    }
+
+    onPlatformCollide(player, platform) {
+        // Only handle collision if player is falling onto platform
+        if (player.body.velocity.y > 0) {
+            console.log('Platform collision:', {
+                playerVelocity: player.body.velocity.y,
+                onPlatform: this.onPlatform,
+                jumping: this.jumping
+            });
+            
+            // Reset all jump states on landing
+            player.body.velocity.y = 0;
+            this.jumping = false;
+            this.onPlatform = true;
+            this.doubleJumpAvailable = false;
+            player.setTint(0x00aaff);
+            
+            // Count landing for score if it's a new platform
+            if (platform.x > this.PLAYER_X - 50) {
+                this.platformsLanded++;
+                this.score += 10;
+                this.scoreText.setText(`Score: ${this.score}`);
+                
+                if (this.platformsLanded >= this.nextLevelAt) {
+                    this.levelUp();
+                }
             }
         }
     }
