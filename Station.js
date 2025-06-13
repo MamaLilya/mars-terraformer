@@ -6,7 +6,9 @@ function isoToScreen(ix, iy) {
 class Station extends Phaser.Scene {
     constructor() {
         super('Station');
+        this.grid = [];
     }
+
     create() {
         // Title and instructions
         this.add.text(400, 40, 'Station', { fontSize: 40, color: '#fff' }).setOrigin(0.5);
@@ -26,7 +28,11 @@ class Station extends Phaser.Scene {
                 const cell = this.add.rectangle(sx, sy, 64, 32, 0x444444)
                     .setStrokeStyle(2, 0x888888)
                     .setInteractive();
-                cell.data = { x, y, built: false };
+                
+                // Store data as a separate object
+                const cellData = { x, y, built: false };
+                cell.setData('info', cellData);
+                
                 cell.on('pointerover', () => this.onCellHover(cell, true));
                 cell.on('pointerout', () => this.onCellHover(cell, false));
                 cell.on('pointerup', () => this.buildFarm(cell));
@@ -63,7 +69,8 @@ class Station extends Phaser.Scene {
     }
 
     onCellHover(cell, isOver) {
-        if (!cell.data.built) {
+        const info = cell.getData('info');
+        if (!info.built) {
             const res = window.SHARED.resources;
             const canBuild = res.stone >= 2 && res.ice >= 1;
             cell.setStrokeStyle(2, isOver ? (canBuild ? 0x00ff00 : 0xff0000) : 0x888888);
@@ -71,7 +78,8 @@ class Station extends Phaser.Scene {
     }
 
     buildFarm(cell) {
-        if (cell.data.built) return;
+        const info = cell.getData('info');
+        if (info.built) return;
         
         const res = window.SHARED.resources;
         if (res.stone >= 2 && res.ice >= 1) {
@@ -85,10 +93,10 @@ class Station extends Phaser.Scene {
                     res.stone -= 2;
                     res.ice -= 1;
                     cell.setFillStyle(0x22bb22);
-                    cell.data.built = true;
+                    info.built = true;
                     
                     // Add farm icon and animation
-                    const [sx, sy] = isoToScreen(cell.data.x, cell.data.y);
+                    const [sx, sy] = isoToScreen(info.x, info.y);
                     const farmText = this.add.text(sx, sy - 10, '🌾', { fontSize: 20 }).setOrigin(0.5);
                     this.add.tween({
                         targets: farmText,
@@ -116,5 +124,17 @@ class Station extends Phaser.Scene {
         this.resourcesText.setText(
             `Resources: Stone ${res.stone} 🪨  Ice ${res.ice} ❄️  Energy ${res.energy} ⚡`
         );
+    }
+
+    shutdown() {
+        // Clean up grid
+        if (this.grid) {
+            this.grid.forEach(cell => {
+                if (cell && cell.removeAllListeners) {
+                    cell.removeAllListeners();
+                }
+            });
+            this.grid = [];
+        }
     }
 } 
