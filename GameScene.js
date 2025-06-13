@@ -4,84 +4,209 @@ class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
     }
+
     create() {
+        // Game state
         this.level = window.SHARED.level;
         this.lives = window.SHARED.lives;
         this.resources = window.SHARED.resources;
-        this.baseSpeed = 200;
-        this.speed = this.baseSpeed + (this.level - 1) * 40;
         this.score = 0;
-        this.distanceTraveled = 0;
-        this.nextLevelDistance = 2000;
-        this.platforms = this.physics.add.staticGroup();
+        this.platformsLanded = 0;
+        this.nextLevelAt = 10; // Level up every 10 platforms
+
+        // Game settings
+        this.baseSpeed = 300;
+        this.speed = this.baseSpeed + (this.level - 1) * 50;
+        
+        // Background
+        this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
+        
+        // Groups
+        this.platforms = this.physics.add.group();
         this.collectibles = this.physics.add.group();
-        this.player = this.add.rectangle(100, 400, 40, 60, 0x00aaff);
+        
+        // Player setup - FIXED at x=100
+        this.player = this.add.rectangle(100, 300, 40, 60, 0x00aaff);
         this.physics.add.existing(this.player);
+        this.player.body.setGravityY(1200);
         this.player.body.setCollideWorldBounds(true);
-        this.player.body.setGravityY(1500);
         this.player.jumpCount = 0;
-        this.setupUI();
+        
+        // Initial platform
         this.spawnPlatform(100, 500, 300);
-        for (let i = 0; i < 5; i++) this.spawnPlatform(400 + i * 200, randInt(350, 550), randInt(120, 200));
+        
+        // Spawn initial platforms
+        let lastX = 400;
+        for (let i = 0; i < 4; i++) {
+            lastX += randInt(200, 300); // Space platforms for comfortable jumping
+            this.spawnPlatform(lastX, randInt(250, 450), randInt(100, 200));
+        }
+        
+        // Collisions
         this.physics.add.collider(this.player, this.platforms, this.onPlatformCollide, null, this);
-        this.physics.add.overlap(this.player, this.collectibles, this.collect, null, this);
+        this.physics.add.overlap(this.player, this.collectibles, this.collectItem, null, this);
+        
+        // Controls
         this.cursors = this.input.keyboard.createCursorKeys();
         this.input.on('pointerdown', () => this.jump());
-        this.nextPlatX = 1400;
-        this.gameOver = false;
-        this.lastCollectibleX = 0;
-        this.add.rectangle(400, 300, 800, 600, 0x111111).setScrollFactor(0);
-        this.cameras.main.startFollow(this.player, true, 1, 0);
-        this.cameras.main.setFollowOffset(-300, 0);
-        this.cameras.main.scrollX = 0;
-        this.player.x = 100;
-        this.player.y = 400;
-        if (this.player.body) {
-            this.player.body.reset(100, 400);
-        }
+        
+        // UI
+        this.setupUI();
     }
-    setupUI() {
-        const uiGroup = this.add.container(0, 0).setScrollFactor(0);
-        this.levelText = this.add.text(10, 10, `Level: ${this.level}`, { fontSize: 20, color: '#fff' }).setOrigin(0, 0);
-        this.livesText = this.add.text(10, 40, `Lives: ${this.lives}`, { fontSize: 20, color: '#fff' }).setOrigin(0, 0);
-        this.resText = this.add.text(10, 70, this.resString(), { fontSize: 20, color: '#fff' }).setOrigin(0, 0);
-        this.scoreText = this.add.text(10, 100, `Score: ${this.score}`, { fontSize: 20, color: '#fff' }).setOrigin(0, 0);
-        uiGroup.add([this.levelText, this.livesText, this.resText, this.scoreText]);
-    }
+
     update() {
-        if (this.gameOver) return;
-        this.player.body.setVelocityX(this.speed);
-        if (this.cursors.up.isDown) this.jump();
-        this.distanceTraveled = Math.max(0, this.player.x - 100);
-        if (this.distanceTraveled >= this.nextLevelDistance) {
-            this.levelUp();
+        if (this.player.y > 600) {
+            this.loseLife();
+            return;
         }
-        this.platforms.children.iterate(plat => {
-            if (plat.x + plat.width < this.cameras.main.scrollX - 100) {
-                plat.destroy();
-                this.spawnPlatform(this.nextPlatX, randInt(350, 550), randInt(120, 200));
-                this.nextPlatX += randInt(180, 260);
+
+        // Keep player fixed at x=100
+        this.player.x = 100;
+        this.player.body.setVelocityX(0);
+
+        // Handle jump input
+        if (this.cursors.up.isDown) {
+            this.jump();
+        }
+
+        // Move platforms and collectibles left
+        this.platforms.children.iterate(platform => {
+            platform.x -= this.speed * (this.game.loop.delta / 1000);
+            if (platform.x < -100) {
+                // When platform moves off screen, spawn a new one on the right
+                const rightmostX = this.getRightmostPlatformX();
+                platform.destroy();
+                this.spawnPlatform(
+                    rightmostX + randInt(200, 300),
+                    randInt(250, 450),
+                    randInt(100, 200)
+                );
+                this.platformsLanded++;
                 this.score += 10;
                 this.scoreText.setText(`Score: ${this.score}`);
+                
+                // Check for level up
+                if (this.platformsLanded >= this.nextLevelAt) {
+                    this.levelUp();
+                }
             }
         });
-        this.collectibles.children.iterate(col => {
-            if (col.x < this.cameras.main.scrollX - 100) col.destroy();
+
+        // Move collectibles with their platforms
+        this.collectibles.children.iterate(collectible => {
+            collectible.x -= this.speed * (this.game.loop.delta / 1000);
+            if (collectible.x < -50) {
+                collectible.destroy();
+            }
         });
-        if (this.nextPlatX - this.lastCollectibleX > 300) {
-            this.spawnCollectible(this.nextPlatX - 150, randInt(250, 400));
-            this.lastCollectibleX = this.nextPlatX;
-        }
-        if (this.player.y > 650) this.loseLife();
     }
+
+    getRightmostPlatformX() {
+        let rightmost = 0;
+        this.platforms.children.iterate(platform => {
+            if (platform.x > rightmost) {
+                rightmost = platform.x;
+            }
+        });
+        return rightmost;
+    }
+
+    spawnPlatform(x, y, width) {
+        const platform = this.add.rectangle(x, y, width, 20, 0x888888);
+        this.physics.add.existing(platform, true);
+        this.platforms.add(platform);
+
+        // 30% chance to spawn a collectible on the platform
+        if (Math.random() < 0.3) {
+            this.spawnCollectible(x, y - 40);
+        }
+
+        return platform;
+    }
+
+    spawnCollectible(x, y) {
+        const types = ['stone', 'ice', 'energy'];
+        const type = types[randInt(0, 2)];
+        const color = type === 'stone' ? 0xaaaaaa : type === 'ice' ? 0x66ccff : 0xffee00;
+        
+        const collectible = this.add.rectangle(x, y, 30, 30, color);
+        this.physics.add.existing(collectible);
+        collectible.type = type;
+        this.collectibles.add(collectible);
+        
+        // Floating animation
+        this.tweens.add({
+            targets: collectible,
+            y: y - 20,
+            duration: 1500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
+
+    jump() {
+        if (this.player.body.touching.down || this.player.jumpCount < 1) {
+            this.player.body.setVelocityY(-600);
+            this.player.jumpCount++;
+            
+            // Visual feedback
+            if (this.player.jumpCount === 1) {
+                this.player.setFillStyle(0x00ff00);
+            }
+        }
+    }
+
+    onPlatformCollide() {
+        this.player.jumpCount = 0;
+        this.player.setFillStyle(0x00aaff);
+    }
+
+    collectItem(player, collectible) {
+        this.resources[collectible.type]++;
+        this.score += 50;
+        this.scoreText.setText(`Score: ${this.score}`);
+        this.resText.setText(this.resString());
+        
+        // Particle effect
+        const particles = this.add.particles(collectible.x, collectible.y, {
+            speed: 100,
+            scale: { start: 1, end: 0 },
+            blendMode: 'ADD',
+            lifespan: 500
+        });
+        particles.createEmitter({
+            tint: collectible.fillColor
+        });
+        setTimeout(() => particles.destroy(), 500);
+        
+        collectible.destroy();
+    }
+
+    setupUI() {
+        const uiGroup = this.add.container(0, 0);
+        this.levelText = this.add.text(10, 10, `Level: ${this.level}`, { fontSize: 20, color: '#fff' });
+        this.livesText = this.add.text(10, 40, `Lives: ${this.lives}`, { fontSize: 20, color: '#fff' });
+        this.resText = this.add.text(10, 70, this.resString(), { fontSize: 20, color: '#fff' });
+        this.scoreText = this.add.text(10, 100, `Score: ${this.score}`, { fontSize: 20, color: '#fff' });
+        uiGroup.add([this.levelText, this.livesText, this.resText, this.scoreText]);
+    }
+
+    resString() {
+        const r = this.resources;
+        return `Stone: ${r.stone}  Ice: ${r.ice}  Energy: ${r.energy}`;
+    }
+
     levelUp() {
         this.level++;
         window.SHARED.level = this.level;
-        this.speed = this.baseSpeed + (this.level - 1) * 40;
-        this.nextLevelDistance += 2000;
+        this.speed = this.baseSpeed + (this.level - 1) * 50;
+        this.platformsLanded = 0;
+        this.nextLevelAt += 5; // Need more platforms for next level
         this.levelText.setText(`Level: ${this.level}`);
         
-        const levelText = this.add.text(this.player.x, 300, `Level ${this.level}!`, {
+        // Level up animation
+        const levelText = this.add.text(400, 300, `Level ${this.level}!`, {
             fontSize: 48,
             color: '#ffff00'
         }).setOrigin(0.5);
@@ -94,85 +219,16 @@ class GameScene extends Phaser.Scene {
             onComplete: () => levelText.destroy()
         });
     }
-    onPlatformCollide() {
-        this.player.jumpCount = 0;
-        this.player.setFillStyle(0x00aaff);
-    }
-    jump() {
-        if (this.player.body.touching.down || this.player.jumpCount < 1) {
-            this.player.body.setVelocityY(-500);
-            this.player.jumpCount++;
-            if (this.player.jumpCount === 1) {
-                this.player.setFillStyle(0x00ff00);
-            }
-        }
-    }
-    spawnPlatform(x, y, w) {
-        const plat = this.add.rectangle(x, y, w, 24, 0x888888);
-        this.physics.add.existing(plat, true);
-        plat.width = w;
-        this.platforms.add(plat);
-        return plat;
-    }
-    spawnCollectible(x, y) {
-        const types = ['stone', 'ice', 'energy'];
-        const type = types[randInt(0, 2)];
-        const color = type === 'stone' ? 0xaaaaaa : type === 'ice' ? 0x66ccff : 0xffee00;
-        
-        const col = this.add.rectangle(x, y, 28, 28, color);
-        this.physics.add.existing(col);
-        col.type = type;
-        this.collectibles.add(col);
-        
-        this.tweens.add({
-            targets: col,
-            y: y - 20,
-            duration: 1500,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut'
-        });
-        
-        return col;
-    }
-    collect(player, col) {
-        this.resources[col.type] += 1;
-        this.resText.setText(this.resString());
-        this.score += 50;
-        this.scoreText.setText(`Score: ${this.score}`);
-        
-        const particles = this.add.particles(col.x, col.y, {
-            speed: 100,
-            scale: { start: 1, end: 0 },
-            blendMode: 'ADD',
-            lifespan: 500
-        });
-        particles.createEmitter({
-            tint: col.fillColor
-        });
-        setTimeout(() => particles.destroy(), 500);
-        col.destroy();
-    }
-    resString() {
-        const r = this.resources;
-        return `Stone: ${r.stone}  Ice: ${r.ice}  Energy: ${r.energy}`;
-    }
+
     loseLife() {
         this.lives--;
         window.SHARED.lives = this.lives;
         this.livesText.setText(`Lives: ${this.lives}`);
+        
         if (this.lives > 0) {
             this.cameras.main.shake(200, 0.01);
             this.cameras.main.flash(300, 255, 0, 0);
-            this.time.delayedCall(300, () => {
-                this.player.x = 100;
-                this.player.y = 400;
-                if (this.player.body) {
-                    this.player.body.reset(100, 400);
-                }
-                this.cameras.main.scrollX = 0;
-                this.scene.restart();
-            });
+            this.time.delayedCall(300, () => this.scene.restart());
         } else {
             window.SHARED.lives = 3;
             window.SHARED.level = 1;
