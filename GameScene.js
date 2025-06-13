@@ -26,7 +26,7 @@ class GameScene extends Phaser.Scene {
         // Input setup
         this.cursors = this.input.keyboard.createCursorKeys();
         this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-        this.input.on('pointerdown', () => this.handleJump(this.time.now));
+        this.input.on('pointerdown', () => this.handleJump());
 
         // Constants matching Pygame values
         this.PLAYER_X = 100;
@@ -36,12 +36,9 @@ class GameScene extends Phaser.Scene {
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
         // Jump state flags
-        this.jumping = false;        // True when player is in first jump
-        this.onPlatform = false;     // True when player is standing on a platform
-        this.canDoubleJump = false;  // True after first jump, before double jump
-        this.hasDoubleJumped = false;// True after double jump
-        this.lastJumpTime = 0;       // Time of last jump for double jump window
-        this.doubleJumpWindow = 300; // 0.3 seconds window for double jump
+        this.jumping = false;           // True when player is in first jump or double jump
+        this.onPlatform = false;        // True when player is standing on a platform
+        this.doubleJumpAvailable = false; // True after first jump, false after double jump
         
         // Platform spawn settings
         this.MIN_PLATFORM_Y = 300;
@@ -108,7 +105,51 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    update(time) {
+    handleJump() {
+        if (!this.player || !this.player.body) return;
+        
+        // First jump: only when on platform and not already jumping
+        if (!this.jumping && this.onPlatform) {
+            // Initiate first jump
+            this.player.body.velocity.y = this.JUMP_FORCE;
+            this.jumping = true;
+            this.onPlatform = false;
+            this.doubleJumpAvailable = true;  // Enable double jump
+            this.player.setTint(0x00ff00);
+        }
+        // Double jump: only once while in the air after first jump
+        else if (this.jumping && this.doubleJumpAvailable) {
+            this.player.body.velocity.y = this.JUMP_FORCE;
+            this.doubleJumpAvailable = false;  // Prevent further jumps
+            this.player.setTint(0xffff00);
+        }
+        // In all other cases, jump is not allowed
+    }
+
+    onPlatformCollide(player, platform) {
+        // Only handle collision if player is falling onto platform
+        if (player.body.velocity.y > 0) {
+            // Reset all jump states on landing
+            player.body.velocity.y = 0;
+            this.jumping = false;
+            this.onPlatform = true;
+            this.doubleJumpAvailable = false;
+            player.setTint(0x00aaff);
+            
+            // Count landing for score if it's a new platform
+            if (platform.x > this.PLAYER_X - 50) {
+                this.platformsLanded++;
+                this.score += 10;
+                this.scoreText.setText(`Score: ${this.score}`);
+                
+                if (this.platformsLanded >= this.nextLevelAt) {
+                    this.levelUp();
+                }
+            }
+        }
+    }
+
+    update() {
         if (!this.player || !this.player.body) return;
         
         // Keep player at fixed X position
@@ -118,19 +159,11 @@ class GameScene extends Phaser.Scene {
         // Handle jump input
         if (Phaser.Input.Keyboard.JustDown(this.cursors.up) || 
             Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-            this.handleJump(time);
+            this.handleJump();
         }
 
         // Update onPlatform state based on collision
-        if (this.player.body.touching.down || this.player.body.blocked.down) {
-            if (!this.onPlatform) {
-                this.onPlatform = true;
-                this.jumping = false;
-                this.canDoubleJump = false;
-                this.hasDoubleJumped = false;
-                this.player.setTint(0x00aaff);
-            }
-        } else {
+        if (!this.player.body.touching.down && !this.player.body.blocked.down) {
             this.onPlatform = false;
         }
 
@@ -163,39 +196,6 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    handleJump(time) {
-        if (!this.player || !this.player.body) return;
-        
-        // First jump only when standing on platform and not already jumping
-        if (this.onPlatform && !this.jumping) {
-            this.player.body.velocity.y = this.JUMP_FORCE;
-            this.jumping = true;
-            this.onPlatform = false;
-            this.canDoubleJump = true;
-            this.hasDoubleJumped = false;
-            this.lastJumpTime = time;
-            this.player.setTint(0x00ff00);
-        } 
-        // Double jump only during jump window and if not already used
-        else if (this.jumping && this.canDoubleJump && !this.hasDoubleJumped && 
-                 time - this.lastJumpTime <= this.doubleJumpWindow) {
-            this.player.body.velocity.y = this.JUMP_FORCE;
-            this.hasDoubleJumped = true;
-            this.canDoubleJump = false;
-            this.player.setTint(0xffff00);
-        }
-    }
-
-    spawnNextPlatform() {
-        const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
-        this.lastPlatformX = Math.max(850, this.lastPlatformX + gap);
-        this.spawnPlatform(
-            this.lastPlatformX,
-            randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y),
-            randInt(100, 200)
-        );
-    }
-
     spawnPlatform(x, y, width) {
         // Create platform texture if it doesn't exist
         if (!this.textures.exists('platform_' + width)) {
@@ -222,10 +222,17 @@ class GameScene extends Phaser.Scene {
         const type = types[randInt(0, 2)];
         const color = type === 'stone' ? 0xaaaaaa : type === 'ice' ? 0x66ccff : 0xffee00;
         
-        const collectible = this.add.rectangle(x, y, 30, 30, color);
-        this.physics.add.existing(collectible);
+        // Create collectible texture if it doesn't exist
+        if (!this.textures.exists('collectible_' + type)) {
+            const graphics = this.add.graphics();
+            graphics.fillStyle(color);
+            graphics.fillRect(0, 0, 30, 30);
+            graphics.generateTexture('collectible_' + type, 30, 30);
+            graphics.destroy();
+        }
+        
+        const collectible = this.collectibles.create(x, y, 'collectible_' + type);
         collectible.type = type;
-        this.collectibles.add(collectible);
         
         this.tweens.add({
             targets: collectible,
@@ -235,30 +242,6 @@ class GameScene extends Phaser.Scene {
             repeat: -1,
             ease: 'Sine.easeInOut'
         });
-    }
-
-    onPlatformCollide(player, platform) {
-        // Only handle collision if player is falling onto platform
-        if (player.body.velocity.y > 0) {
-            // Reset jump state
-            player.body.velocity.y = 0;
-            this.jumping = false;
-            this.onPlatform = true;
-            this.canDoubleJump = false;
-            this.hasDoubleJumped = false;
-            player.setTint(0x00aaff);
-            
-            // Count landing for score if it's a new platform
-            if (platform.x > this.PLAYER_X - 50) {
-                this.platformsLanded++;
-                this.score += 10;
-                this.scoreText.setText(`Score: ${this.score}`);
-                
-                if (this.platformsLanded >= this.nextLevelAt) {
-                    this.levelUp();
-                }
-            }
-        }
     }
 
     collectItem(player, collectible) {
@@ -290,18 +273,14 @@ class GameScene extends Phaser.Scene {
         collectible.destroy();
     }
 
-    setupUI() {
-        const uiGroup = this.add.container(0, 0);
-        this.levelText = this.add.text(10, 10, `Level: ${this.level}`, { fontSize: 20, color: '#fff' });
-        this.livesText = this.add.text(10, 40, `Lives: ${this.lives}`, { fontSize: 20, color: '#fff' });
-        this.resText = this.add.text(10, 70, this.resString(), { fontSize: 20, color: '#fff' });
-        this.scoreText = this.add.text(10, 100, `Score: ${this.score}`, { fontSize: 20, color: '#fff' });
-        uiGroup.add([this.levelText, this.livesText, this.resText, this.scoreText]);
-    }
-
-    resString() {
-        const r = this.resources;
-        return `Stone: ${r.stone}  Ice: ${r.ice}  Energy: ${r.energy}`;
+    spawnNextPlatform() {
+        const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
+        this.lastPlatformX = Math.max(850, this.lastPlatformX + gap);
+        this.spawnPlatform(
+            this.lastPlatformX,
+            randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y),
+            randInt(100, 200)
+        );
     }
 
     levelUp() {
@@ -340,5 +319,19 @@ class GameScene extends Phaser.Scene {
             window.SHARED.level = 1;
             this.scene.start('GameOver', { score: this.score });
         }
+    }
+
+    setupUI() {
+        const uiGroup = this.add.container(0, 0);
+        this.levelText = this.add.text(10, 10, `Level: ${this.level}`, { fontSize: 20, color: '#fff' });
+        this.livesText = this.add.text(10, 40, `Lives: ${this.lives}`, { fontSize: 20, color: '#fff' });
+        this.resText = this.add.text(10, 70, this.resString(), { fontSize: 20, color: '#fff' });
+        this.scoreText = this.add.text(10, 100, `Score: ${this.score}`, { fontSize: 20, color: '#fff' });
+        uiGroup.add([this.levelText, this.livesText, this.resText, this.scoreText]);
+    }
+
+    resString() {
+        const r = this.resources;
+        return `Stone: ${r.stone}  Ice: ${r.ice}  Energy: ${r.energy}`;
     }
 } 
