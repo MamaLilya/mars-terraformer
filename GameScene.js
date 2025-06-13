@@ -22,6 +22,7 @@ class GameScene extends Phaser.Scene {
         this.score = 0;
         this.platformsLanded = 0;
         this.nextLevelAt = 30; // Level up every 30 platforms
+        this.gameOver = false; // Add game over flag
 
         // Input setup - SPACE key only for jumping
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -127,8 +128,9 @@ class GameScene extends Phaser.Scene {
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
 
-        // Check for game over
-        if (this.player.y > 600) {
+        // Check for game over - only if not already game over
+        if (this.player.y > 600 && !this.gameOver) {
+            this.gameOver = true;
             this.loseLife();
             return;
         }
@@ -141,6 +143,7 @@ class GameScene extends Phaser.Scene {
         for (let i = platforms.length - 1; i >= 0; i--) {
             const platform = platforms[i];
             platform.x -= moveAmount;
+            platform.body.updateFromGameObject(); // Update physics body position
             if (platform.x < -100) {
                 platform.destroy();
             }
@@ -307,6 +310,7 @@ class GameScene extends Phaser.Scene {
     }
 
     loseLife() {
+        this.gameOver = true; // Ensure game over flag is set
         this.lives--;
         window.SHARED.lives = this.lives;
         window.SHARED.resources = this.resources;
