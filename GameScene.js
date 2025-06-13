@@ -205,8 +205,23 @@ class GameScene extends Phaser.Scene {
 
     onPlayerLanding(player, platform) {
         // Loosen landing check margin
-        if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 15) {
+        if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 25) {
             console.log('Landing on platform');
+            console.log('Player:', {
+                x: player.x,
+                y: player.y,
+                left: player.body.left,
+                right: player.body.right,
+                bottom: player.body.bottom
+            });
+            console.log('Platform:', {
+                x: platform.x,
+                y: platform.y,
+                left: platform.body.left,
+                right: platform.body.right,
+                top: platform.body.top,
+                width: platform.displayWidth
+            });
             player.body.velocity.y = 0;
             this.jumping = false;
             this.doubleJumpAvailable = false;
@@ -244,6 +259,9 @@ class GameScene extends Phaser.Scene {
         // Set body height to 20px and offset to 0 (flush with sprite)
         platform.body.setSize(width, 20, true);
         platform.body.setOffset(0, 0);
+        
+        // Log platform position and width
+        console.log('Spawned platform:', {x, y, width});
         
         // 70% chance to spawn a collectible
         if (Math.random() < 0.7) {
