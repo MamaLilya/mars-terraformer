@@ -47,7 +47,12 @@ class Station extends Phaser.Scene {
             .setPadding(12, 8);
 
         // Button interactions
-        startBtn.on('pointerup', () => this.scene.start('GameScene'));
+        startBtn.on('pointerup', () => {
+            // Reset game state for new level
+            window.SHARED.lives = 3;
+            // Keep resources and level, but start the game scene
+            this.scene.start('GameScene');
+        });
         backBtn.on('pointerup', () => this.scene.start('MainMenu'));
 
         // Visual feedback for buttons
