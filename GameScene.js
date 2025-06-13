@@ -14,6 +14,11 @@ class GameScene extends Phaser.Scene {
         this.platformsLanded = 0;
         this.nextLevelAt = 30; // Level up every 30 platforms
 
+        // Input setup
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        this.input.on('pointerdown', () => this.handleJump(this.time.now));
+
         // Constants matching Pygame values
         this.PLAYER_X = 100;
         this.GRAVITY = 0.8 * 60; // Pygame gravity 0.8 scaled to Phaser's 60fps
@@ -66,10 +71,6 @@ class GameScene extends Phaser.Scene {
         this.physics.add.collider(this.player, this.platforms, this.onPlatformCollide, null, this);
         this.physics.add.overlap(this.player, this.collectibles, this.collectItem, null, this);
         
-        // Controls
-        this.cursors = this.input.keyboard.createCursorKeys();
-        this.input.on('pointerdown', () => this.handleJump());
-        
         // UI
         this.setupUI();
 
@@ -93,7 +94,7 @@ class GameScene extends Phaser.Scene {
         this.player.body.setVelocityX(0);
 
         // Handle jump input
-        if (this.cursors.up.isDown || this.input.activePointer.isDown) {
+        if (this.cursors.up.isDown || this.spaceKey.isDown) {
             this.handleJump(time);
         }
 
@@ -106,19 +107,24 @@ class GameScene extends Phaser.Scene {
         // Move platforms and collectibles left
         const moveAmount = (this.platformSpeed * this.game.loop.delta) / 1000;
         
-        this.platforms.children.iterate(platform => {
+        // Use getChildren() to safely iterate and filter active game objects
+        const platforms = this.platforms.getChildren();
+        for (let i = platforms.length - 1; i >= 0; i--) {
+            const platform = platforms[i];
             platform.x -= moveAmount;
             if (platform.x < -100) {
                 platform.destroy();
             }
-        });
+        }
 
-        this.collectibles.children.iterate(collectible => {
+        const collectibles = this.collectibles.getChildren();
+        for (let i = collectibles.length - 1; i >= 0; i--) {
+            const collectible = collectibles[i];
             collectible.x -= moveAmount;
             if (collectible.x < -50) {
                 collectible.destroy();
             }
-        });
+        }
     }
 
     handleJump(time) {
