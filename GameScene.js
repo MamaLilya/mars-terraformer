@@ -12,39 +12,45 @@ class GameScene extends Phaser.Scene {
         this.resources = window.SHARED.resources;
         this.score = 0;
         this.platformsLanded = 0;
-        this.nextLevelAt = 10;
+        this.nextLevelAt = 30; // Level up every 30 platforms
 
-        // Constants
+        // Constants matching Pygame values
         this.PLAYER_X = 100;
-        this.GRAVITY = 0.8 * 1000; // Convert Pygame gravity to Phaser scale
-        this.JUMP_FORCE = -15 * 60; // Convert Pygame jump force to Phaser scale
-        this.PLATFORM_SPEED = 5;
+        this.GRAVITY = 0.8 * 60; // Pygame gravity 0.8 scaled to Phaser's 60fps
+        this.JUMP_FORCE = -15 * 60; // Pygame jump force -15 scaled to Phaser's 60fps
+        this.BASE_PLATFORM_SPEED = 2 * 60; // 2 pixels per frame scaled to Phaser's 60fps
+        this.platformSpeed = this.BASE_PLATFORM_SPEED;
+        
+        // Platform spawn settings
         this.MIN_PLATFORM_Y = 300;
         this.MAX_PLATFORM_Y = 500;
-        this.PLATFORM_SPAWN_INTERVAL = 1000; // 1 second
-        this.lastPlatformTime = 0;
-
+        this.MIN_PLATFORM_GAP = 200;
+        this.MAX_PLATFORM_GAP = 400;
+        this.lastPlatformX = 0;
+        
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
         
         // Create groups
         this.platforms = this.physics.add.group({ allowGravity: false, immovable: true });
-        this.collectibles = this.physics.add.group({ allowGravity: false });
+        this.collectibles = this.physics.add.group({ allowGravity: false, immovable: true });
         
         // Player setup
         this.player = this.add.rectangle(this.PLAYER_X, 300, 40, 60, 0x00aaff);
         this.physics.add.existing(this.player);
         this.player.body.setGravityY(this.GRAVITY);
-        this.player.body.setCollideWorldBounds(false); // Allow falling off screen
+        this.player.body.setCollideWorldBounds(false);
         
         // Jump state
+        this.lastJumpTime = 0;
         this.canDoubleJump = false;
+        this.doubleJumpWindow = 300; // 0.3 seconds for double jump
         this.hasDoubleJumped = false;
-        this.isJumping = false;
         
         // Initial platforms
         this.spawnPlatform(100, 450, 300); // Starting platform
-        this.spawnPlatform(500, randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y), 200);
+        this.lastPlatformX = 500;
+        this.spawnPlatform(this.lastPlatformX, randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y), 200);
         
         // Collisions
         this.physics.add.collider(this.player, this.platforms, this.onPlatformCollide, null, this);
@@ -57,10 +63,18 @@ class GameScene extends Phaser.Scene {
         // UI
         this.setupUI();
 
-        // Prevent horizontal movement
+        // Lock player X position
         this.player.body.setAllowGravity(true);
         this.player.body.setVelocityX(0);
         this.player.body.setImmovable(true);
+
+        // Platform spawn timer
+        this.time.addEvent({
+            delay: 1000, // 1 second
+            callback: this.spawnNextPlatform,
+            callbackScope: this,
+            loop: true
+        });
     }
 
     update(time) {
@@ -70,7 +84,7 @@ class GameScene extends Phaser.Scene {
 
         // Handle jump input
         if (this.cursors.up.isDown) {
-            this.handleJump();
+            this.handleJump(time);
         }
 
         // Check for game over
@@ -79,37 +93,12 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        // Update jump state
-        if (this.player.body.touching.down) {
-            this.isJumping = false;
-            this.hasDoubleJumped = false;
-            this.canDoubleJump = false;
-            this.player.setFillStyle(0x00aaff);
-        }
-
-        // Spawn platforms at regular intervals
-        if (time - this.lastPlatformTime >= this.PLATFORM_SPAWN_INTERVAL) {
-            this.spawnPlatform(
-                850, // Spawn just off screen
-                randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y),
-                randInt(100, 200)
-            );
-            this.lastPlatformTime = time;
-        }
-
         // Move platforms and collectibles left
-        const moveAmount = this.PLATFORM_SPEED * (1 + (this.level - 1) * 0.1);
+        const moveAmount = (this.platformSpeed * this.game.loop.delta) / 1000;
         
         this.platforms.children.iterate(platform => {
             platform.x -= moveAmount;
             if (platform.x < -100) {
-                this.platformsLanded++;
-                this.score += 10;
-                this.scoreText.setText(`Score: ${this.score}`);
-                
-                if (this.platformsLanded >= this.nextLevelAt) {
-                    this.levelUp();
-                }
                 platform.destroy();
             }
         });
@@ -122,20 +111,34 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    handleJump() {
-        if (this.player.body.touching.down) {
-            // First jump from platform
+    handleJump(time) {
+        const onGround = this.player.body.touching.down;
+        
+        if (onGround) {
+            // First jump
             this.player.body.setVelocityY(this.JUMP_FORCE);
-            this.isJumping = true;
+            this.lastJumpTime = time;
             this.canDoubleJump = true;
+            this.hasDoubleJumped = false;
             this.player.setFillStyle(0x00ff00);
-        } else if (this.canDoubleJump && !this.hasDoubleJumped) {
-            // Double jump in air
+        } else if (this.canDoubleJump && !this.hasDoubleJumped && 
+                  time - this.lastJumpTime <= this.doubleJumpWindow) {
+            // Double jump within 0.3 seconds
             this.player.body.setVelocityY(this.JUMP_FORCE);
             this.hasDoubleJumped = true;
             this.canDoubleJump = false;
             this.player.setFillStyle(0xffff00);
         }
+    }
+
+    spawnNextPlatform() {
+        const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
+        this.lastPlatformX = Math.max(850, this.lastPlatformX + gap);
+        this.spawnPlatform(
+            this.lastPlatformX,
+            randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y),
+            randInt(100, 200)
+        );
     }
 
     spawnPlatform(x, y, width) {
@@ -145,8 +148,8 @@ class GameScene extends Phaser.Scene {
         platform.body.setImmovable(true);
         this.platforms.add(platform);
 
-        // 30% chance to spawn a collectible
-        if (Math.random() < 0.3) {
+        // 70% chance to spawn a collectible
+        if (Math.random() < 0.7) {
             this.spawnCollectible(x, y - 40);
         }
     }
@@ -159,6 +162,7 @@ class GameScene extends Phaser.Scene {
         const collectible = this.add.rectangle(x, y, 30, 30, color);
         this.physics.add.existing(collectible);
         collectible.body.setAllowGravity(false);
+        collectible.body.setImmovable(true);
         collectible.type = type;
         this.collectibles.add(collectible);
         
@@ -172,13 +176,24 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    onPlatformCollide() {
-        if (!this.player.body.touching.down) return;
+    onPlatformCollide(player, platform) {
+        if (!player.body.touching.down) return;
         
-        this.isJumping = false;
-        this.hasDoubleJumped = false;
+        // Reset jump state on landing
         this.canDoubleJump = false;
+        this.hasDoubleJumped = false;
         this.player.setFillStyle(0x00aaff);
+        
+        // Count successful landing
+        if (platform.x > this.PLAYER_X - 50) { // Only count if landing on new platform
+            this.platformsLanded++;
+            this.score += 10;
+            this.scoreText.setText(`Score: ${this.score}`);
+            
+            if (this.platformsLanded >= this.nextLevelAt) {
+                this.levelUp();
+            }
+        }
     }
 
     collectItem(player, collectible) {
@@ -218,8 +233,9 @@ class GameScene extends Phaser.Scene {
     levelUp() {
         this.level++;
         window.SHARED.level = this.level;
+        this.platformSpeed = this.BASE_PLATFORM_SPEED * (1 + this.level * 0.1); // 10% faster per level
         this.platformsLanded = 0;
-        this.nextLevelAt += 5;
+        this.nextLevelAt = 30; // Reset platforms needed
         this.levelText.setText(`Level: ${this.level}`);
         
         const levelText = this.add.text(400, 300, `Level ${this.level}!`, {
