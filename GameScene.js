@@ -140,9 +140,8 @@ class GameScene extends Phaser.Scene {
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
 
-        // Handle jump input from space or up arrow
-        if (Phaser.Input.Keyboard.JustDown(this.cursors.space) || 
-            Phaser.Input.Keyboard.JustDown(this.cursors.up)) {
+        // Handle jump input - check if keys are down
+        if (this.cursors.space.isDown || this.cursors.up.isDown) {
             this.handleJump();
         }
 
@@ -229,6 +228,10 @@ class GameScene extends Phaser.Scene {
         // Ensure proper physics settings
         platform.setImmovable(true);
         platform.body.allowGravity = false;
+        
+        // Set explicit body size and offset for better collision
+        platform.body.setSize(width, 20, true);
+        platform.body.setOffset(0, 0);
         
         // 70% chance to spawn a collectible
         if (Math.random() < 0.7) {
@@ -344,4 +347,4 @@ class GameScene extends Phaser.Scene {
     resString() {
         return `Resources: Stone ${this.resources.stone}  Ice ${this.resources.ice}  Energy ${this.resources.energy}`;
     }
-} 
+}
