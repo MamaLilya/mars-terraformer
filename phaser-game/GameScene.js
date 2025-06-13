@@ -36,7 +36,8 @@ class GameScene extends Phaser.Scene {
         this.PLAYER_X = 100;
         this.GRAVITY = 1000;       // Standard Phaser gravity
         this.JUMP_FORCE = -400;    // Standard Phaser jump force
-        this.BASE_PLATFORM_SPEED = 2 * 60; // Platform speed still needs fps scaling
+        this.DOUBLE_JUMP_FORCE = -350; // Slightly weaker double jump
+        this.BASE_PLATFORM_SPEED = 1.5 * 60; // Reduced platform speed for simpler gameplay
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
         // Jump state flags
@@ -77,7 +78,7 @@ class GameScene extends Phaser.Scene {
         this.player.setCollideWorldBounds(true);
         // Set player physics properties
         this.player.body.setGravityY(this.GRAVITY);
-        this.player.body.setSize(32, 32, true);
+        this.player.body.setSize(40, 60, true); // Match visual size
         
         // Create starting platform
         const startPlatform = this.spawnPlatform(100, 400, 200);
@@ -151,7 +152,7 @@ class GameScene extends Phaser.Scene {
         // Double jump: only when in air, already jumping, and double jump available
         else if (!this.onPlatform && this.jumping && this.doubleJumpAvailable) {
             console.log('Double jump triggered');
-            this.player.body.velocity.y = this.JUMP_FORCE;
+            this.player.body.velocity.y = this.DOUBLE_JUMP_FORCE; // Use weaker double jump force
             this.doubleJumpAvailable = false;
             this.player.setTint(0xffff00);
             this.justJumped = true;
@@ -293,9 +294,9 @@ class GameScene extends Phaser.Scene {
         // Ensure proper physics settings
         platform.setImmovable(true);
         platform.body.allowGravity = false;
-        // Set body to match sprite exactly
-        platform.body.setSize(width, 20, true);
-        platform.body.setOffset(0, 0);
+        // Set body to match sprite exactly with slightly thicker hitbox
+        platform.body.setSize(width, 25, true);
+        platform.body.setOffset(0, -5); // Move hitbox up slightly
         // Log platform position and width
         console.log('Spawned platform:', {x, y, width});
         // 70% chance to spawn a collectible
@@ -361,11 +362,13 @@ class GameScene extends Phaser.Scene {
     spawnNextPlatform() {
         // Use fixed safe MIN/MAX gap
         const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
-        this.lastPlatformX = Math.max(800, this.lastPlatformX + gap); // Reduced from 850 to 800
+        this.lastPlatformX = Math.max(800, this.lastPlatformX + gap);
+        // Random platform width between 100 and 150
+        const platformWidth = randInt(100, 150);
         this.spawnPlatform(
             this.lastPlatformX,
             randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y),
-            200
+            platformWidth
         );
     }
 
@@ -373,7 +376,8 @@ class GameScene extends Phaser.Scene {
         this.level++;
         window.SHARED.level = this.level;
         this.levelText.setText(`Level: ${this.level}`);
-        this.platformSpeed = this.BASE_PLATFORM_SPEED * (1 + this.level * 0.1);
+        // More gradual speed increase
+        this.platformSpeed = this.BASE_PLATFORM_SPEED * (1 + this.level * 0.05);
         this.nextLevelAt += 30;
         
         // Visual feedback
