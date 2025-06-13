@@ -12,11 +12,14 @@ class GameScene extends Phaser.Scene {
         this.resources = window.SHARED.resources;
         this.score = 0;
         this.platformsLanded = 0;
-        this.nextLevelAt = 10; // Level up every 10 platforms
+        this.nextLevelAt = 10;
 
-        // Game settings
-        this.baseSpeed = 300;
-        this.speed = this.baseSpeed + (this.level - 1) * 50;
+        // Game settings - matching Pygame values
+        this.baseSpeed = 5;
+        this.speed = this.baseSpeed + (this.level - 1) * 0.5;
+        this.PLAYER_X = 100; // Fixed X position
+        this.lastPlatformTime = 0;
+        this.platformInterval = 1000; // Spawn platform every 1 second
         
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
@@ -26,20 +29,22 @@ class GameScene extends Phaser.Scene {
         this.collectibles = this.physics.add.group();
         
         // Player setup - FIXED at x=100
-        this.player = this.add.rectangle(100, 300, 40, 60, 0x00aaff);
+        this.player = this.add.rectangle(this.PLAYER_X, 300, 40, 60, 0x00aaff);
         this.physics.add.existing(this.player);
-        this.player.body.setGravityY(1200);
+        
+        // Set gravity to match Pygame (0.8)
+        this.player.body.setGravityY(800); // Phaser uses pixels/second², so we multiply by 1000
         this.player.body.setCollideWorldBounds(true);
         this.player.jumpCount = 0;
         
         // Initial platform
-        this.spawnPlatform(100, 500, 300);
+        this.spawnPlatform(100, 450, 300);
         
         // Spawn initial platforms
         let lastX = 400;
-        for (let i = 0; i < 4; i++) {
-            lastX += randInt(200, 300); // Space platforms for comfortable jumping
-            this.spawnPlatform(lastX, randInt(250, 450), randInt(100, 200));
+        for (let i = 0; i < 3; i++) {
+            lastX += randInt(200, 400);
+            this.spawnPlatform(lastX, randInt(300, 500), randInt(100, 200));
         }
         
         // Collisions
@@ -54,14 +59,9 @@ class GameScene extends Phaser.Scene {
         this.setupUI();
     }
 
-    update() {
-        if (this.player.y > 600) {
-            this.loseLife();
-            return;
-        }
-
-        // Keep player fixed at x=100
-        this.player.x = 100;
+    update(time) {
+        // Keep player fixed at X = 100
+        this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
 
         // Handle jump input
@@ -69,32 +69,43 @@ class GameScene extends Phaser.Scene {
             this.jump();
         }
 
+        // Check for game over
+        if (this.player.y > 600) {
+            this.loseLife();
+            return;
+        }
+
+        // Spawn new platform every second
+        if (time - this.lastPlatformTime >= this.platformInterval) {
+            const rightmostX = this.getRightmostPlatformX();
+            this.spawnPlatform(
+                rightmostX + randInt(200, 400),
+                randInt(300, 500),
+                randInt(100, 200)
+            );
+            this.lastPlatformTime = time;
+        }
+
         // Move platforms and collectibles left
+        const deltaTime = this.game.loop.delta;
+        const moveAmount = this.speed * deltaTime;
+
         this.platforms.children.iterate(platform => {
-            platform.x -= this.speed * (this.game.loop.delta / 1000);
+            platform.x -= moveAmount;
             if (platform.x < -100) {
-                // When platform moves off screen, spawn a new one on the right
-                const rightmostX = this.getRightmostPlatformX();
-                platform.destroy();
-                this.spawnPlatform(
-                    rightmostX + randInt(200, 300),
-                    randInt(250, 450),
-                    randInt(100, 200)
-                );
                 this.platformsLanded++;
                 this.score += 10;
                 this.scoreText.setText(`Score: ${this.score}`);
                 
-                // Check for level up
                 if (this.platformsLanded >= this.nextLevelAt) {
                     this.levelUp();
                 }
+                platform.destroy();
             }
         });
 
-        // Move collectibles with their platforms
         this.collectibles.children.iterate(collectible => {
-            collectible.x -= this.speed * (this.game.loop.delta / 1000);
+            collectible.x -= moveAmount;
             if (collectible.x < -50) {
                 collectible.destroy();
             }
@@ -102,7 +113,7 @@ class GameScene extends Phaser.Scene {
     }
 
     getRightmostPlatformX() {
-        let rightmost = 0;
+        let rightmost = 800; // Start at screen width
         this.platforms.children.iterate(platform => {
             if (platform.x > rightmost) {
                 rightmost = platform.x;
@@ -116,7 +127,7 @@ class GameScene extends Phaser.Scene {
         this.physics.add.existing(platform, true);
         this.platforms.add(platform);
 
-        // 30% chance to spawn a collectible on the platform
+        // 30% chance to spawn a collectible
         if (Math.random() < 0.3) {
             this.spawnCollectible(x, y - 40);
         }
@@ -147,7 +158,8 @@ class GameScene extends Phaser.Scene {
 
     jump() {
         if (this.player.body.touching.down || this.player.jumpCount < 1) {
-            this.player.body.setVelocityY(-600);
+            // Set jump velocity to match Pygame (-15)
+            this.player.body.setVelocityY(-650); // Scaled for Phaser's pixel/second system
             this.player.jumpCount++;
             
             // Visual feedback
@@ -200,9 +212,9 @@ class GameScene extends Phaser.Scene {
     levelUp() {
         this.level++;
         window.SHARED.level = this.level;
-        this.speed = this.baseSpeed + (this.level - 1) * 50;
+        this.speed = this.baseSpeed + (this.level - 1) * 0.5;
         this.platformsLanded = 0;
-        this.nextLevelAt += 5; // Need more platforms for next level
+        this.nextLevelAt += 5;
         this.levelText.setText(`Level: ${this.level}`);
         
         // Level up animation
