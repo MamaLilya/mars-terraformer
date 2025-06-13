@@ -122,14 +122,12 @@ class GameScene extends Phaser.Scene {
 
     handleJump() {
         if (!this.player?.body) return;
-        
         console.log('Jump attempted - State:', {
             onPlatform: this.onPlatform,
             jumping: this.jumping,
             doubleJumpAvailable: this.doubleJumpAvailable,
             velocityY: this.player.body.velocity.y
         });
-        
         // First jump: only when on platform and not jumping
         if (this.onPlatform && !this.jumping) {
             console.log('First jump triggered');
@@ -139,6 +137,7 @@ class GameScene extends Phaser.Scene {
             this.doubleJumpAvailable = true;
             this.player.setTint(0x00ff00);
             this.justJumped = true;
+            console.log('First jump triggered → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y);
         }
         // Double jump: only when in air, already jumping, and double jump available
         else if (!this.onPlatform && this.jumping && this.doubleJumpAvailable) {
@@ -147,18 +146,18 @@ class GameScene extends Phaser.Scene {
             this.doubleJumpAvailable = false;
             this.player.setTint(0xffff00);
             this.justJumped = true;
+            console.log('Double jump triggered → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y);
         }
     }
 
     update() {
         if (!this.player?.body) return;
-
         // Use physics to determine if player is on a platform
         this.onPlatform = this.player.body.touching.down || this.player.body.blocked.down;
-
         // Reset justJumped after physics step
         if (this.justJumped) this.justJumped = false;
-
+        // Log player position and velocity every frame
+        console.log('Update frame → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y, 'onPlatform:', this.onPlatform);
         // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
