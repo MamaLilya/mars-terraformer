@@ -159,6 +159,12 @@ class GameScene extends Phaser.Scene {
 
     update() {
         if (!this.player?.body) return;
+        // Skip updating onPlatform if we just snapped
+        if (this.justSnapped) {
+            this.justSnapped = false;
+            // Skip updating onPlatform this frame, it was just set by snap.
+            return;
+        }
         // Use physics to determine if player is on a platform
         this.onPlatform = this.player.body.touching.down || this.player.body.blocked.down;
         if (this.justJumped) this.justJumped = false;
@@ -210,6 +216,7 @@ class GameScene extends Phaser.Scene {
                 this.doubleJumpAvailable = false;
                 this.player.setTint(0x00aaff);
                 this.onPlatform = true;
+                this.justSnapped = true; // Set justSnapped flag
                 console.log('Backup snap landing triggered');
                 break;
             }
