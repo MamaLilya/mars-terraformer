@@ -161,21 +161,18 @@ class GameScene extends Phaser.Scene {
         if (!this.player?.body) return;
         // Use physics to determine if player is on a platform
         this.onPlatform = this.player.body.touching.down || this.player.body.blocked.down;
-        // Reset justJumped after physics step
         if (this.justJumped) this.justJumped = false;
         // Log player position and velocity every frame
         console.log('Update frame → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y, 'onPlatform:', this.onPlatform);
         // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
-
         // Check for game over - only if not already game over
         if (this.player.y > 600 && !this.gameOver) {
             this.gameOver = true;
             this.loseLife();
             return;
         }
-
         // Move platforms using physics velocity only
         const platforms = this.platforms.getChildren();
         for (let i = platforms.length - 1; i >= 0; i--) {
@@ -185,7 +182,6 @@ class GameScene extends Phaser.Scene {
                 platform.destroy();
             }
         }
-
         // Move collectibles visually (if needed)
         const moveAmount = (this.platformSpeed * this.game.loop.delta) / 1000;
         const collectibles = this.collectibles.getChildren();
@@ -196,16 +192,33 @@ class GameScene extends Phaser.Scene {
                 collectible.destroy();
             }
         }
-
         // Spawn new platform if needed
         if (this.lastPlatformX < 900) {
             this.spawnNextPlatform();
         }
+        // Optional snap backup for safety:
+        for (let i = 0; i < platforms.length; i++) {
+            const platform = platforms[i];
+            const overlapHorizontally = Math.abs(this.player.x - platform.x) < platform.displayWidth / 2;
+            const closeToTop = Math.abs(this.player.body.bottom - platform.body.top) < 12;
+            if (!this.onPlatform && overlapHorizontally && closeToTop && this.player.body.velocity.y >= 0) {
+                // Snap player to platform
+                this.player.body.velocity.y = 0;
+                this.player.y = platform.y - platform.displayHeight / 2 - this.player.displayHeight / 2 + 1;
+                this.player.body.updateFromGameObject();
+                this.jumping = false;
+                this.doubleJumpAvailable = false;
+                this.player.setTint(0x00aaff);
+                this.onPlatform = true;
+                console.log('Backup snap landing triggered');
+                break;
+            }
+        }
     }
 
     onPlayerLanding(player, platform) {
-        // Loosen landing check margin
-        if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 25) {
+        // Increased landing check margin
+        if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 40) {
             console.log('Landing on platform');
             console.log('Player:', {
                 x: player.x,
@@ -248,26 +261,20 @@ class GameScene extends Phaser.Scene {
             graphics.generateTexture('platform_' + width, width, 20);
             graphics.destroy();
         }
-        
         // Create platform sprite in the dynamic group
         const platform = this.platforms.create(x, y, 'platform_' + width);
-        
         // Ensure proper physics settings
         platform.setImmovable(true);
         platform.body.allowGravity = false;
-        
-        // Set body height to 20px and offset to 0 (flush with sprite)
-        platform.body.setSize(width, 20, true);
-        platform.body.setOffset(0, 0);
-        
+        // Make platform body thicker and offset down
+        platform.body.setSize(width, 40, true);  // Thicker
+        platform.body.setOffset(0, -10);         // Top flush, bottom extends below
         // Log platform position and width
         console.log('Spawned platform:', {x, y, width});
-        
         // 70% chance to spawn a collectible
         if (Math.random() < 0.7) {
             this.spawnCollectible(x, y - 40);
         }
-
         return platform;
     }
 
