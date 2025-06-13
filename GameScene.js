@@ -169,6 +169,19 @@ class GameScene extends Phaser.Scene {
         if (this.justJumped) this.justJumped = false;
         // Log player position and velocity every frame
         console.log('Update frame → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y, 'onPlatform:', this.onPlatform);
+        // Log detailed platform alignment when onPlatform is true
+        if (this.onPlatform) {
+            // Find the platform the player is standing on
+            const platforms = this.platforms.getChildren();
+            for (let i = 0; i < platforms.length; i++) {
+                const platform = platforms[i];
+                const overlapHorizontally = Math.abs(this.player.x - platform.x) < platform.displayWidth / 2;
+                if (overlapHorizontally) {
+                    console.log('Stable on platform → player.y:', this.player.y, 'platform.body.top:', platform.body.top);
+                    break;
+                }
+            }
+        }
         // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
