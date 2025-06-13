@@ -151,8 +151,7 @@ class GameScene extends Phaser.Scene {
         const platforms = this.platforms.getChildren();
         for (let i = platforms.length - 1; i >= 0; i--) {
             const platform = platforms[i];
-            platform.x -= moveAmount;
-            platform.body.updateFromGameObject(); // Update physics body position
+            platform.setVelocityX(-this.platformSpeed); // Use physics velocity instead of x position
             if (platform.x < -100) {
                 platform.destroy();
             }
