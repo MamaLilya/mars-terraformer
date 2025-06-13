@@ -139,8 +139,8 @@ class GameScene extends Phaser.Scene {
     update() {
         if (!this.player?.body) return;
 
-        // Reset onPlatform at the start of each frame
-        this.onPlatform = false;
+        // Use physics to determine if player is on a platform
+        this.onPlatform = this.player.body.touching.down || this.player.body.blocked.down;
 
         // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
@@ -187,7 +187,6 @@ class GameScene extends Phaser.Scene {
             console.log('Landing on platform');
             player.body.velocity.y = 0;
             this.jumping = false;
-            this.onPlatform = true;
             this.doubleJumpAvailable = false;
             player.setTint(0x00aaff);
             // Count landing for score if it's a new platform
