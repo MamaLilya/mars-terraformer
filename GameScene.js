@@ -86,7 +86,11 @@ class GameScene extends Phaser.Scene {
             this.player, 
             this.platforms,
             this.onPlayerLanding,
-            null,
+            (player, platform) => {
+                // Only process collision if player is falling onto platform
+                return player.body.velocity.y > 0 && 
+                       player.body.bottom <= platform.body.top + 10;
+            },
             this
         );
         
@@ -173,33 +177,23 @@ class GameScene extends Phaser.Scene {
     }
 
     onPlayerLanding(player, platform) {
-        console.log('Platform collision - Velocity:', player.body.velocity.y);
+        console.log('Landing on platform');
+        // Reset all jump states on landing
+        player.body.velocity.y = 0;
+        this.jumping = false;
+        this.onPlatform = true;
+        this.doubleJumpAvailable = false;
+        player.setTint(0x00aaff);
         
-        // Only handle collision if player is falling onto platform
-        if (player.body.velocity.y > 0) {
-            console.log('Landing on platform');
-            // Reset all jump states on landing
-            player.body.velocity.y = 0;
-            this.jumping = false;
-            this.onPlatform = true;
-            this.doubleJumpAvailable = false;
-            player.setTint(0x00aaff);
+        // Count landing for score if it's a new platform
+        if (platform.x > this.PLAYER_X - 50) {
+            this.platformsLanded++;
+            this.score += 10;
+            this.scoreText.setText(`Score: ${this.score}`);
             
-            // Count landing for score if it's a new platform
-            if (platform.x > this.PLAYER_X - 50) {
-                this.platformsLanded++;
-                this.score += 10;
-                this.scoreText.setText(`Score: ${this.score}`);
-                
-                if (this.platformsLanded >= this.nextLevelAt) {
-                    this.levelUp();
-                }
+            if (this.platformsLanded >= this.nextLevelAt) {
+                this.levelUp();
             }
-        } else {
-            console.log('Hit platform from below/side');
-            // If we hit a platform from below or the side while jumping,
-            // ensure we're marked as not on platform
-            this.onPlatform = false;
         }
     }
 
