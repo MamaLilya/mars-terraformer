@@ -105,8 +105,16 @@ class GameScene extends Phaser.Scene {
     handleJump() {
         if (!this.player?.body) return;
         
+        console.log('Jump attempted - State:', {
+            onPlatform: this.onPlatform,
+            jumping: this.jumping,
+            doubleJumpAvailable: this.doubleJumpAvailable,
+            velocityY: this.player.body.velocity.y
+        });
+        
         // First jump: only when on platform and not jumping
         if (this.onPlatform && !this.jumping) {
+            console.log('First jump triggered');
             this.player.body.velocity.y = this.JUMP_FORCE;
             this.jumping = true;
             this.onPlatform = false;
@@ -115,6 +123,7 @@ class GameScene extends Phaser.Scene {
         }
         // Double jump: only when in air, already jumping, and double jump available
         else if (!this.onPlatform && this.jumping && this.doubleJumpAvailable) {
+            console.log('Double jump triggered');
             this.player.body.velocity.y = this.JUMP_FORCE;
             this.doubleJumpAvailable = false;
             this.player.setTint(0xffff00);
@@ -165,14 +174,11 @@ class GameScene extends Phaser.Scene {
     }
 
     onPlayerLanding(player, platform) {
+        console.log('Platform collision - Velocity:', player.body.velocity.y);
+        
         // Only handle collision if player is falling onto platform
         if (player.body.velocity.y > 0) {
-            console.log('Platform collision:', {
-                playerVelocity: player.body.velocity.y,
-                onPlatform: this.onPlatform,
-                jumping: this.jumping
-            });
-            
+            console.log('Landing on platform');
             // Reset all jump states on landing
             player.body.velocity.y = 0;
             this.jumping = false;
@@ -191,6 +197,7 @@ class GameScene extends Phaser.Scene {
                 }
             }
         } else {
+            console.log('Hit platform from below/side');
             // If we hit a platform from below or the side while jumping,
             // ensure we're marked as not on platform
             this.onPlatform = false;
@@ -310,14 +317,18 @@ class GameScene extends Phaser.Scene {
     }
 
     loseLife() {
+        console.log('Losing life - Current lives:', this.lives);
         this.gameOver = true; // Ensure game over flag is set
         this.lives--;
+        console.log('Lives after decrement:', this.lives);
         window.SHARED.lives = this.lives;
         window.SHARED.resources = this.resources;
         
         if (this.lives <= 0) {
+            console.log('Game Over triggered');
             this.scene.start('GameOver', { score: this.score });
         } else {
+            console.log('Restarting scene');
             this.scene.restart();
         }
     }
