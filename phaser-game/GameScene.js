@@ -49,7 +49,7 @@ class GameScene extends Phaser.Scene {
         // h = (v0^2) / (2g) where v0 is initial velocity (JUMP_FORCE)
         const maxJumpHeight = (this.JUMP_FORCE * this.JUMP_FORCE) / (2 * this.GRAVITY);
         this.MIN_PLATFORM_Y = 300;  // Keep minimum height reasonable
-        this.MAX_PLATFORM_Y = Math.min(500, 400 + maxJumpHeight * 0.8); // Ensure platforms are reachable
+        this.MAX_PLATFORM_Y = Math.min(450, 350 + maxJumpHeight * 0.7); // Ensure platforms are reachable
         this.lastPlatformX = 0;
      
         // Background
@@ -125,8 +125,8 @@ class GameScene extends Phaser.Scene {
         const t_apex = -this.JUMP_FORCE / this.GRAVITY;
         const t_total = 2 * t_apex;
         this.maxJumpDistance = this.platformSpeed * t_total;
-        this.MIN_PLATFORM_GAP = 80;
-        this.MAX_PLATFORM_GAP = 150;
+        this.MIN_PLATFORM_GAP = 60;  // Reduced minimum gap
+        this.MAX_PLATFORM_GAP = 120; // Reduced maximum gap
     }
 
     handleJump() {
@@ -169,83 +169,61 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        // Skip updating onPlatform if we just snapped
+        // Keep player at fixed X position
+        this.player.x = this.PLAYER_X;
+        this.player.body.setVelocityX(0);
+
+        // Skip updating if we just snapped
         if (this.justSnapped) {
             this.justSnapped = false;
-            // Skip updating onPlatform this frame, it was just set by snap.
             return;
         }
 
-        // Backup snap logic - only if we're falling and not on a platform
-        if (this.player.body.velocity.y > 0 && !this.onPlatform) {
-            // Check each platform for potential snap
-            this.platforms.getChildren().forEach(platform => {
-                // Get exact positions for overlap check
-                const playerLeft = this.player.body.left;
-                const playerRight = this.player.body.right;
-                const platformLeft = platform.body.left;
-                const platformRight = platform.body.right;
-                
-                // Strict horizontal overlap check
-                const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
-                
-                // Calculate vertical distance to platform
-                const verticalDistance = platform.body.top - this.player.body.bottom;
-                
-                // Single strict condition check for snap
-                if (!this.onPlatform && horizontalOverlap && verticalDistance <= 20 && this.player.body.velocity.y >= 0) {
-                    console.log(`Backup snap → player.left: ${playerLeft}, player.right: ${playerRight}, platform.left: ${platformLeft}, platform.right: ${platformRight}, verticalDistance: ${verticalDistance}`);
-                    
-                    // Snap to platform
-                    this.player.setPosition(this.player.x, platform.body.top - this.player.body.height/2);
-                    this.player.body.setVelocityY(0);
-                    this.onPlatform = true;
-                    this.jumping = false;
-                    this.doubleJumpAvailable = false;
-                    this.justSnapped = true;
-                }
-            });
-        }
+        // Reset platform state
+        this.onPlatform = false;
 
-        // Update onPlatform state if not just snapped
-        if (!this.justSnapped) {
-            this.onPlatform = false;
-            this.platforms.getChildren().forEach(platform => {
+        // Check each platform for landing or potential snap
+        this.platforms.getChildren().forEach(platform => {
+            // Get exact positions for overlap check
+            const playerLeft = this.player.body.left;
+            const playerRight = this.player.body.right;
+            const platformLeft = platform.body.left;
+            const platformRight = platform.body.right;
+            
+            // Strict horizontal overlap check
+            const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
+            
+            if (horizontalOverlap) {
+                // Check for normal landing
                 if (this.player.body.touching.down && this.player.body.blocked.down) {
                     if (this.player.body.bottom === platform.body.top) {
                         this.onPlatform = true;
                     }
                 }
-            });
-        }
-
-        // Use physics to determine if player is on a platform
-        this.onPlatform = this.player.body.touching.down || this.player.body.blocked.down;
-        if (this.justJumped) this.justJumped = false;
-        // Log player position and velocity every frame
-        console.log('Update frame → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y, 'onPlatform:', this.onPlatform);
-        // Log detailed platform alignment when onPlatform is true
-        if (this.onPlatform) {
-            // Find the platform the player is standing on
-            const platforms = this.platforms.getChildren();
-            for (let i = 0; i < platforms.length; i++) {
-                const platform = platforms[i];
-                const overlapHorizontally = Math.abs(this.player.x - platform.x) < platform.displayWidth / 2;
-                if (overlapHorizontally) {
-                    console.log(`Stable on platform → player.body.bottom: ${this.player.body.bottom}, platform.body.top: ${platform.body.top}`);
-                    break;
+                // Check for backup snap
+                else if (!this.onPlatform && this.player.body.velocity.y >= 0) {
+                    const verticalDistance = platform.body.top - this.player.body.bottom;
+                    if (verticalDistance > 0 && verticalDistance <= 20) {
+                        console.log(`Backup snap → player.left: ${playerLeft}, player.right: ${playerRight}, platform.left: ${platformLeft}, platform.right: ${platformRight}, verticalDistance: ${verticalDistance}`);
+                        
+                        // Snap to platform
+                        this.player.setPosition(this.player.x, platform.body.top - this.player.body.height/2);
+                        this.player.body.setVelocityY(0);
+                        this.onPlatform = true;
+                        this.jumping = false;
+                        this.doubleJumpAvailable = false;
+                        this.justSnapped = true;
+                    }
                 }
             }
+        });
+
+        // Log player state
+        console.log('Update frame → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y, 'onPlatform:', this.onPlatform);
+        if (this.onPlatform) {
+            console.log(`Stable on platform → player.body.bottom: ${this.player.body.bottom}`);
         }
-        // Keep player at fixed X position
-        this.player.x = this.PLAYER_X;
-        this.player.body.setVelocityX(0);
-        // Check for game over - only if not already game over
-        if (this.player.y > 600 && !this.gameOver) {
-            this.gameOver = true;
-            this.loseLife();
-            return;
-        }
+
         // Move platforms using physics velocity only
         const platforms = this.platforms.getChildren();
         for (let i = platforms.length - 1; i >= 0; i--) {
@@ -383,7 +361,7 @@ class GameScene extends Phaser.Scene {
     spawnNextPlatform() {
         // Use fixed safe MIN/MAX gap
         const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
-        this.lastPlatformX = Math.max(850, this.lastPlatformX + gap);
+        this.lastPlatformX = Math.max(800, this.lastPlatformX + gap); // Reduced from 850 to 800
         this.spawnPlatform(
             this.lastPlatformX,
             randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y),
