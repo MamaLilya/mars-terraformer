@@ -1,9 +1,4 @@
-import MainMenu from './MainMenu.js';
-import WorldMap from './WorldMap.js';
-import Station from './Station.js';
-import GameScene from './GameScene.js';
-import GameOver from './GameOver.js';
-
+// Game configuration and shared state
 const SHARED = {
     resources: { stone: 0, ice: 0, energy: 0 },
     level: 1,
