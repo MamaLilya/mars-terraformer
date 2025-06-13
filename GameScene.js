@@ -47,8 +47,6 @@ class GameScene extends Phaser.Scene {
         // Platform generation constants
         this.MIN_PLATFORM_Y = 300;
         this.MAX_PLATFORM_Y = 500;
-        this.MIN_PLATFORM_GAP = 200;
-        this.MAX_PLATFORM_GAP = 400;
         this.lastPlatformX = 0;
      
         // Background
@@ -117,6 +115,16 @@ class GameScene extends Phaser.Scene {
         // (Optional) Enable Arcade Physics debug
         // this.physics.world.drawDebug = true;
         // this.physics.world.debugGraphic = this.add.graphics();
+
+        // Calculate max jump distance based on physics
+        // t_apex = -JUMP_FORCE / GRAVITY
+        // t_total = 2 * t_apex
+        // maxJumpDistance = platformSpeed * t_total
+        const t_apex = -this.JUMP_FORCE / this.GRAVITY;
+        const t_total = 2 * t_apex;
+        this.maxJumpDistance = this.platformSpeed * t_total;
+        this.MIN_PLATFORM_GAP = Math.floor(this.maxJumpDistance * 0.5);
+        this.MAX_PLATFORM_GAP = Math.floor(this.maxJumpDistance * 0.85);
     }
 
     handleJump() {
@@ -302,6 +310,7 @@ class GameScene extends Phaser.Scene {
     }
 
     spawnNextPlatform() {
+        // Use updated MIN/MAX gap based on physics
         const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
         this.lastPlatformX = Math.max(850, this.lastPlatformX + gap);
         this.spawnPlatform(
