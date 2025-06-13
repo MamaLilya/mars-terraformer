@@ -31,6 +31,10 @@ class GameScene extends Phaser.Scene {
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
         
+        // Configure physics
+        this.physics.world.setBoundsCollision(false, false, false, false);
+        this.physics.world.gravity.y = this.GRAVITY;
+        
         // Create groups
         this.platforms = this.physics.add.group({ 
             allowGravity: false,
@@ -89,7 +93,7 @@ class GameScene extends Phaser.Scene {
         this.player.body.setVelocityX(0);
 
         // Handle jump input
-        if (this.cursors.up.isDown) {
+        if (this.cursors.up.isDown || this.input.activePointer.isDown) {
             this.handleJump(time);
         }
 
