@@ -49,16 +49,21 @@ class GameScene extends Phaser.Scene {
         this.physics.world.setBoundsCollision(false, false, false, false);
         this.physics.world.gravity.y = this.GRAVITY;
         
-        // Create groups with proper physics settings
+        // Create static platforms group
         this.platforms = this.physics.add.staticGroup();
         this.collectibles = this.physics.add.staticGroup();
         
         // Initial platform
         const startPlatform = this.spawnPlatform(100, 450, 300); // Starting platform
         
-        // Player setup - position player on the starting platform
-        this.player = this.add.rectangle(this.PLAYER_X, 400, 40, 60, 0x00aaff);
-        this.physics.add.existing(this.player);
+        // Create player sprite and enable physics
+        const graphics = this.add.graphics();
+        graphics.fillStyle(0x00aaff);
+        graphics.fillRect(0, 0, 40, 60);
+        graphics.generateTexture('player', 40, 60);
+        graphics.destroy();
+        
+        this.player = this.physics.add.sprite(this.PLAYER_X, 400, 'player');
         this.player.body.setGravityY(this.GRAVITY);
         this.player.body.setCollideWorldBounds(false);
         
@@ -102,6 +107,8 @@ class GameScene extends Phaser.Scene {
     }
 
     update(time) {
+        if (!this.player || !this.player.body) return;
+        
         // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
@@ -126,9 +133,6 @@ class GameScene extends Phaser.Scene {
         for (let i = platforms.length - 1; i >= 0; i--) {
             const platform = platforms[i];
             platform.x -= moveAmount;
-            platform.body.x = platform.x - platform.width / 2;
-            platform.body.updateFromGameObject();
-            
             if (platform.x < -100) {
                 platform.destroy();
             }
@@ -138,9 +142,6 @@ class GameScene extends Phaser.Scene {
         for (let i = collectibles.length - 1; i >= 0; i--) {
             const collectible = collectibles[i];
             collectible.x -= moveAmount;
-            collectible.body.x = collectible.x - collectible.width / 2;
-            collectible.body.updateFromGameObject();
-            
             if (collectible.x < -50) {
                 collectible.destroy();
             }
@@ -148,6 +149,8 @@ class GameScene extends Phaser.Scene {
     }
 
     handleJump(time) {
+        if (!this.player || !this.player.body) return;
+        
         const onGround = this.player.body.touching.down || this.player.body.blocked.down;
         
         if (onGround) {
@@ -156,14 +159,14 @@ class GameScene extends Phaser.Scene {
             this.lastJumpTime = time;
             this.canDoubleJump = true;
             this.hasDoubleJumped = false;
-            this.player.setFillStyle(0x00ff00);
+            this.player.setTint(0x00ff00);
         } else if (this.canDoubleJump && !this.hasDoubleJumped && 
                   time - this.lastJumpTime <= this.doubleJumpWindow) {
             // Double jump within 0.3 seconds
             this.player.body.velocity.y = this.JUMP_FORCE;
             this.hasDoubleJumped = true;
             this.canDoubleJump = false;
-            this.player.setFillStyle(0xffff00);
+            this.player.setTint(0xffff00);
         }
     }
 
@@ -178,17 +181,17 @@ class GameScene extends Phaser.Scene {
     }
 
     spawnPlatform(x, y, width) {
-        // Create platform with proper physics body
-        const platform = this.add.rectangle(x, y, width, 20, 0x888888);
-        this.platforms.add(platform);
+        // Create platform texture if it doesn't exist
+        if (!this.textures.exists('platform_' + width)) {
+            const graphics = this.add.graphics();
+            graphics.fillStyle(0x888888);
+            graphics.fillRect(0, 0, width, 20);
+            graphics.generateTexture('platform_' + width, width, 20);
+            graphics.destroy();
+        }
         
-        // Ensure platform has correct physics properties
-        platform.body.setImmovable(true);
-        platform.body.moves = false;
-        platform.body.allowGravity = false;
-        platform.body.checkCollision.down = false;
-        platform.body.checkCollision.left = false;
-        platform.body.checkCollision.right = false;
+        // Create static platform sprite
+        const platform = this.platforms.create(x, y, 'platform_' + width);
         
         // 70% chance to spawn a collectible
         if (Math.random() < 0.7) {
@@ -224,6 +227,7 @@ class GameScene extends Phaser.Scene {
             player.body.velocity.y = 0;
             this.canDoubleJump = false;
             this.hasDoubleJumped = false;
+            player.setTint(0x00aaff);
             
             // Count landing for score if it's a new platform
             if (platform.x > this.PLAYER_X - 50) {
