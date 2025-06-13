@@ -86,11 +86,7 @@ class GameScene extends Phaser.Scene {
             this.player, 
             this.platforms,
             this.onPlayerLanding,
-            (player, platform) => {
-                // Only process collision if player is falling onto platform
-                return player.body.velocity.y > 0 && 
-                       player.body.bottom <= platform.body.top + 10;
-            },
+            null,
             this
         );
         
@@ -137,6 +133,9 @@ class GameScene extends Phaser.Scene {
     update() {
         if (!this.player?.body) return;
 
+        // Reset onPlatform at the start of each frame
+        this.onPlatform = false;
+
         // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
@@ -177,22 +176,22 @@ class GameScene extends Phaser.Scene {
     }
 
     onPlayerLanding(player, platform) {
-        console.log('Landing on platform');
-        // Reset all jump states on landing
-        player.body.velocity.y = 0;
-        this.jumping = false;
-        this.onPlatform = true;
-        this.doubleJumpAvailable = false;
-        player.setTint(0x00aaff);
-        
-        // Count landing for score if it's a new platform
-        if (platform.x > this.PLAYER_X - 50) {
-            this.platformsLanded++;
-            this.score += 10;
-            this.scoreText.setText(`Score: ${this.score}`);
-            
-            if (this.platformsLanded >= this.nextLevelAt) {
-                this.levelUp();
+        // Only set landing state if player is falling and feet are above platform
+        if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 10) {
+            console.log('Landing on platform');
+            player.body.velocity.y = 0;
+            this.jumping = false;
+            this.onPlatform = true;
+            this.doubleJumpAvailable = false;
+            player.setTint(0x00aaff);
+            // Count landing for score if it's a new platform
+            if (platform.x > this.PLAYER_X - 50) {
+                this.platformsLanded++;
+                this.score += 10;
+                this.scoreText.setText(`Score: ${this.score}`);
+                if (this.platformsLanded >= this.nextLevelAt) {
+                    this.levelUp();
+                }
             }
         }
     }
