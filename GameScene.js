@@ -16,53 +16,65 @@ class GameScene extends Phaser.Scene {
 
     create() {
         // Game state
-        this.level = window.SHARED.level;
-        this.lives = window.SHARED.lives;
-        this.resources = window.SHARED.resources;
+        this.level = window.SHARED.level || 1;
+        this.lives = window.SHARED.lives || 3;
+        this.resources = window.SHARED.resources || { stone: 0, ice: 0, energy: 0 };
         this.score = 0;
         this.platformsLanded = 0;
-        this.nextLevelAt = 30; // Level up every 30 platforms
-        this.gameOver = false; // Add game over flag
+        this.nextLevelAt = 30;
+        this.gameOver = false;
         this.justJumped = false;
 
-        // Input setup - SPACE key only for jumping
+        // Input setup
         this.cursors = this.input.keyboard.createCursorKeys();
         this.input.keyboard.on('keydown-SPACE', this.handleJump, this);
-        
-        // Touch/click input for mobile support
         this.input.on('pointerdown', this.handleJump, this);
 
-        // Constants matching Pygame values
+        // Constants
         this.PLAYER_X = 100;
-        this.GRAVITY = 1000;       // Standard Phaser gravity
-        this.JUMP_FORCE = -400;    // Standard Phaser jump force
-        this.BASE_PLATFORM_SPEED = 2 * 60; // Platform speed still needs fps scaling
+        this.GRAVITY = 1000;
+        this.JUMP_FORCE = -400;  // Reduced for better control
+        this.DOUBLE_JUMP_FORCE = -350;  // Reduced for better control
+        this.BASE_PLATFORM_SPEED = 1.5 * 60;
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
-        // Jump state flags
-        this.jumping = false;           // True when in any jump (first or double)
-        this.onPlatform = false;        // True only when standing on platform
-        this.doubleJumpAvailable = false; // True after first jump, false after using double jump
+        // Jump state
+        this.jumping = false;
+        this.onPlatform = false;
+        this.doubleJumpAvailable = false;
+        this.justSnapped = false;
         
-        // Platform generation constants
-        this.MIN_PLATFORM_Y = 300;
-        this.MAX_PLATFORM_Y = 500;
+        // Calculate max jump height: h = (v²) / (2 * g)
+        this.MAX_JUMP_HEIGHT = (this.JUMP_FORCE * this.JUMP_FORCE) / (2 * this.GRAVITY);
+        console.log('Max jump height:', this.MAX_JUMP_HEIGHT);
+        
+        // Platform generation
+        this.MIN_PLATFORM_Y = 200;  // Lower minimum height
+        this.MAX_PLATFORM_Y = 350;  // Lower maximum height
         this.lastPlatformX = 0;
-     
+        this.MIN_PLATFORM_GAP = 60;  // Increased minimum gap
+        this.MAX_PLATFORM_GAP = 100;  // Increased maximum gap
+        this.MIN_PLATFORM_DISTANCE_FROM_BOTTOM = 100;  // Minimum distance from bottom
+        
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
+        
+        // Add lava effect at bottom
+        this.lava = this.add.rectangle(0, this.cameras.main.height - 20, 800, 20, 0xff0000);
+        this.lava.setOrigin(0, 0);
+        this.lava.alpha = 0.5;
         
         // Configure physics
         this.physics.world.gravity.y = this.GRAVITY;
         
-        // Create dynamic platforms group - better for moving platforms
+        // Create dynamic platforms group
         this.platforms = this.physics.add.group({
             allowGravity: false,
             immovable: true
         });
         this.collectibles = this.physics.add.staticGroup();
         
-        // Create player sprite and enable physics
+        // Create player sprite
         const graphics = this.add.graphics();
         graphics.fillStyle(0x00aaff);
         graphics.fillRect(0, 0, 40, 60);
@@ -72,20 +84,12 @@ class GameScene extends Phaser.Scene {
         this.player = this.physics.add.sprite(this.PLAYER_X, 300, 'player');
         this.player.setBounce(0);
         this.player.setCollideWorldBounds(true);
-        // Set player physics properties
         this.player.body.setGravityY(this.GRAVITY);
-        this.player.body.setSize(32, 32, true);
+        this.player.body.setSize(40, 60, true);
         
         // Create starting platform
         const startPlatform = this.spawnPlatform(100, 400, 200);
-        // Position player on starting platform, aligned with platform body top
         this.player.y = startPlatform.body.top - this.player.displayHeight / 2 + 1;
-        console.log('Initial player position:', {
-            x: this.player.x,
-            y: this.player.y,
-            platformTop: startPlatform.body.top,
-            platformY: startPlatform.y
-        });
         
         // Spawn second platform
         this.lastPlatformX = 500;
@@ -110,168 +114,190 @@ class GameScene extends Phaser.Scene {
 
         // Set up UI
         this.setupUI();
-
-        // (Optional) Enable Arcade Physics debug
-        // this.physics.world.drawDebug = true;
-        // this.physics.world.debugGraphic = this.add.graphics();
-
-        // Calculate max jump distance based on physics
-        // t_apex = -JUMP_FORCE / GRAVITY
-        // t_total = 2 * t_apex
-        // maxJumpDistance = platformSpeed * t_total
-        const t_apex = -this.JUMP_FORCE / this.GRAVITY;
-        const t_total = 2 * t_apex;
-        this.maxJumpDistance = this.platformSpeed * t_total;
-        this.MIN_PLATFORM_GAP = 80;
-        this.MAX_PLATFORM_GAP = 150;
     }
 
     handleJump() {
-        if (!this.player?.body) return;
         console.log('Jump attempted - State:', {
             onPlatform: this.onPlatform,
             jumping: this.jumping,
             doubleJumpAvailable: this.doubleJumpAvailable,
             velocityY: this.player.body.velocity.y
         });
-        // First jump: only when on platform and not jumping
+
         if (this.onPlatform && !this.jumping) {
+            // First jump
             console.log('First jump triggered');
-            this.player.body.velocity.y = this.JUMP_FORCE;
+            this.player.setVelocityY(this.JUMP_FORCE);
             this.jumping = true;
             this.onPlatform = false;
-            this.doubleJumpAvailable = true;
-            this.player.setTint(0x00ff00);
-            this.justJumped = true;
-            console.log('First jump triggered → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y);
-        }
-        // Double jump: only when in air, already jumping, and double jump available
-        else if (!this.onPlatform && this.jumping && this.doubleJumpAvailable) {
+            console.log('First jump triggered →', {
+                playerY: this.player.y,
+                velocityY: this.player.body.velocity.y
+            });
+        } else if (this.jumping && this.doubleJumpAvailable) {
+            // Double jump
             console.log('Double jump triggered');
-            this.player.body.velocity.y = this.JUMP_FORCE;
+            this.player.setVelocityY(this.DOUBLE_JUMP_FORCE);
             this.doubleJumpAvailable = false;
-            this.player.setTint(0xffff00);
-            this.justJumped = true;
-            console.log('Double jump triggered → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y);
+            console.log('Double jump triggered →', {
+                playerY: this.player.y,
+                velocityY: this.player.body.velocity.y
+            });
         }
     }
 
     update() {
-        if (!this.player?.body) return;
-        // Skip updating onPlatform if we just snapped
-        if (this.justSnapped) {
-            this.justSnapped = false;
-            // Skip updating onPlatform this frame, it was just set by snap.
+        if (this.gameOver) {
+            if (this.player?.body) {
+                this.player.setVelocity(0, 0);
+                this.player.body.enable = false;
+            }
             return;
         }
-        // Use physics to determine if player is on a platform
-        this.onPlatform = this.player.body.touching.down || this.player.body.blocked.down;
-        if (this.justJumped) this.justJumped = false;
-        // Log player position and velocity every frame
-        console.log('Update frame → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y, 'onPlatform:', this.onPlatform);
-        // Log detailed platform alignment when onPlatform is true
-        if (this.onPlatform) {
-            // Find the platform the player is standing on
-            const platforms = this.platforms.getChildren();
-            for (let i = 0; i < platforms.length; i++) {
-                const platform = platforms[i];
-                const overlapHorizontally = Math.abs(this.player.x - platform.x) < platform.displayWidth / 2;
-                if (overlapHorizontally) {
-                    console.log('Stable on platform → player.y:', this.player.y, 'platform.body.top:', platform.body.top);
-                    break;
-                }
-            }
-        }
-        // Keep player at fixed X position
-        this.player.x = this.PLAYER_X;
-        this.player.body.setVelocityX(0);
-        // Check for game over - only if not already game over
-        if (this.player.y > 600 && !this.gameOver) {
+
+        // Check if player is too close to bottom (lava)
+        if (this.player?.y > this.cameras.main.height - this.MIN_PLATFORM_DISTANCE_FROM_BOTTOM) {
+            console.log('Game Over: Player too close to lava');
             this.gameOver = true;
             this.loseLife();
             return;
         }
-        // Move platforms using physics velocity only
-        const platforms = this.platforms.getChildren();
-        for (let i = platforms.length - 1; i >= 0; i--) {
-            const platform = platforms[i];
-            platform.setVelocityX(-this.platformSpeed); // Use physics velocity
-            if (platform.x < -100) {
-                platform.destroy();
-            }
+
+        // Handle player movement
+        if (this.cursors.left.isDown) {
+            this.player.setVelocityX(-160);
+        } else if (this.cursors.right.isDown) {
+            this.player.setVelocityX(160);
+        } else {
+            this.player.setVelocityX(0);
         }
-        // Move collectibles visually (if needed)
-        const moveAmount = (this.platformSpeed * this.game.loop.delta) / 1000;
-        const collectibles = this.collectibles.getChildren();
-        for (let i = collectibles.length - 1; i >= 0; i--) {
-            const collectible = collectibles[i];
-            collectible.x -= moveAmount;
-            if (collectible.x < -50) {
-                collectible.destroy();
-            }
+
+        // Keep player at fixed X position
+        this.player.x = this.PLAYER_X;
+
+        // Handle jumping
+        if (this.cursors.up.isDown || this.cursors.space.isDown) {
+            this.handleJump();
         }
-        // Spawn new platform if needed
-        if (this.lastPlatformX < 900) {
+
+        // Reset platform state at start of frame
+        this.onPlatform = false;
+
+        // Check each platform
+        this.platforms.getChildren().forEach(platform => {
+            // Get collision bounds
+            const playerBottom = this.player.body.bottom;
+            const platformTop = platform.body.top;
+            const playerLeft = this.player.body.left;
+            const playerRight = this.player.body.right;
+            const platformLeft = platform.body.left;
+            const platformRight = platform.body.right;
+
+            // Check horizontal overlap
+            const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
+            
+            if (horizontalOverlap) {
+                // Normal landing check
+                if (this.player.body.touching.down && this.player.body.blocked.down) {
+                    const verticalDistance = platformTop - playerBottom;
+                    if (verticalDistance >= -10 && verticalDistance <= 10) {
+                        console.log('Normal landing detected', {
+                            playerY: this.player.y,
+                            platformTop,
+                            verticalDistance
+                        });
+                        this.onPlatform = true;
+                        this.jumping = false;
+                        this.doubleJumpAvailable = true;  // Enable double jump on landing
+                        this.player.body.velocity.y = 0;
+                    }
+                }
+                // Backup snap check
+                else if (!this.onPlatform && this.player.body.velocity.y >= 0) {
+                    const verticalDistance = platformTop - playerBottom;
+                    if (verticalDistance > 0 && verticalDistance <= 15) {  // Reduced snap distance
+                        console.log('Backup snap triggered', {
+                            playerY: this.player.y,
+                            platformTop,
+                            verticalDistance,
+                            velocityY: this.player.body.velocity.y
+                        });
+
+                        // Perform the snap
+                        this.player.y = platformTop - this.player.body.height/2;
+                        this.player.body.velocity.y = 0;
+                        this.player.body.updateFromGameObject();
+                        
+                        // Update states
+                        this.onPlatform = true;
+                        this.jumping = false;
+                        this.doubleJumpAvailable = true;  // Enable double jump on snap
+                    }
+                }
+            }
+        });
+
+        // Update score based on height
+        const newScore = Math.floor(this.player.y / 10);
+        if (newScore > this.score) {
+            this.score = newScore;
+            this.scoreText.setText(`Score: ${this.score}`);
+        }
+
+        // Check for level progression
+        if (this.platformsLanded >= this.nextLevelAt) {
+            this.level++;
+            this.nextLevelAt += 30;
+            this.platformSpeed = this.BASE_PLATFORM_SPEED * (1 + (this.level - 1) * 0.05);
+            this.levelText.setText(`Level: ${this.level}`);
+        }
+
+        // Spawn new platforms
+        const rightmostPlatform = this.getRightmostPlatform();
+        if (rightmostPlatform && rightmostPlatform.x < this.cameras.main.width + 200) {
             this.spawnNextPlatform();
         }
-        // Optional snap backup for safety:
-        for (let i = 0; i < platforms.length; i++) {
-            const platform = platforms[i];
-            const overlapHorizontally = Math.abs(this.player.x - platform.x) < platform.displayWidth / 2;
-            const closeToTop = Math.abs(this.player.body.bottom - platform.body.top) < 12;
-            if (!this.onPlatform && overlapHorizontally && closeToTop && this.player.body.velocity.y >= 0) {
-                // Snap player to platform
-                this.player.body.velocity.y = 0;
-                this.player.y = platform.y - platform.displayHeight / 2 - this.player.displayHeight / 2 + 1;
-                this.player.body.updateFromGameObject();
-                this.jumping = false;
-                this.doubleJumpAvailable = false;
-                this.player.setTint(0x00aaff);
-                this.onPlatform = true;
-                this.justSnapped = true; // Set justSnapped flag
-                console.log('Backup snap landing triggered');
-                break;
+
+        // Remove platforms that are off screen
+        this.platforms.getChildren().forEach(platform => {
+            if (platform.x < -platform.width) {
+                platform.destroy();
             }
-        }
+        });
+
+        // Move platforms
+        this.platforms.getChildren().forEach(platform => {
+            platform.setVelocityX(-this.platformSpeed);
+        });
+
+        // Debug logging
+        console.log('Update frame →', {
+            playerY: this.player.y,
+            velocityY: this.player.body.velocity.y,
+            onPlatform: this.onPlatform,
+            jumping: this.jumping,
+            doubleJumpAvailable: this.doubleJumpAvailable
+        });
     }
 
     onPlayerLanding(player, platform) {
-        // Increased landing check margin
-        if (player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 40) {
-            console.log('Landing on platform');
-            console.log('Player:', {
-                x: player.x,
-                y: player.y,
-                left: player.body.left,
-                right: player.body.right,
-                bottom: player.body.bottom
+        const verticalDistance = platform.body.top - player.body.bottom;
+        if (verticalDistance >= -10 && verticalDistance <= 10) {
+            console.log('Physics landing detected', {
+                playerY: player.y,
+                platformTop: platform.body.top,
+                verticalDistance
             });
-            console.log('Platform:', {
-                x: platform.x,
-                y: platform.y,
-                left: platform.body.left,
-                right: platform.body.right,
-                top: platform.body.top,
-                width: platform.displayWidth
-            });
+            
+            player.y = platform.body.top - player.displayHeight / 2;
             player.body.velocity.y = 0;
-            // Force-align player Y to platform body top
-            player.y = platform.body.top - player.displayHeight / 2 + 1;
             player.body.updateFromGameObject();
+            
             this.jumping = false;
-            this.doubleJumpAvailable = false;
-            this.justJumped = false;
-            player.setTint(0x00aaff);
-            console.log('Aligning player after landing: player.y =', player.y, 'platform.body.top =', platform.body.top);
-            // Count landing for score if it's a new platform
-            if (platform.x > this.PLAYER_X - 50) {
-                this.platformsLanded++;
-                this.score += 10;
-                this.scoreText.setText(`Score: ${this.score}`);
-                if (this.platformsLanded >= this.nextLevelAt) {
-                    this.levelUp();
-                }
-            }
+            this.doubleJumpAvailable = true;
+            this.player.setTint(0x00aaff);
+            this.onPlatform = true;
+            this.justSnapped = true;
         }
     }
 
@@ -289,11 +315,10 @@ class GameScene extends Phaser.Scene {
         // Ensure proper physics settings
         platform.setImmovable(true);
         platform.body.allowGravity = false;
-        // Set body to match sprite exactly
-        platform.body.setSize(width, 20, true);
-        platform.body.setOffset(0, 0);
+        platform.body.setSize(width, 30, true); // Increased hitbox height
+        platform.body.setOffset(0, -10); // Increased offset for better collision
         // Log platform position and width
-        console.log('Spawned platform:', {x, y, width});
+        console.log('Spawned platform:', {x, y, width, hitboxHeight: 30, offset: -10});
         // 70% chance to spawn a collectible
         if (Math.random() < 0.7) {
             this.spawnCollectible(x, y - 40);
@@ -357,19 +382,87 @@ class GameScene extends Phaser.Scene {
     spawnNextPlatform() {
         // Use fixed safe MIN/MAX gap
         const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
-        this.lastPlatformX = Math.max(850, this.lastPlatformX + gap);
-        this.spawnPlatform(
-            this.lastPlatformX,
-            randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y),
-            200
-        );
+        this.lastPlatformX = Math.max(700, this.lastPlatformX + gap);
+        
+        // Random platform width between 100 and 150
+        const platformWidth = randInt(100, 150);
+        
+        // Get current player position
+        const currentPlayerY = this.player.y;
+        
+        // Calculate maximum allowed height for new platform
+        const maxAllowedHeight = currentPlayerY - this.MAX_JUMP_HEIGHT;
+        
+        // Calculate platform height range
+        const minHeight = Math.max(this.MIN_PLATFORM_Y, maxAllowedHeight);
+        const maxHeight = Math.min(this.MAX_PLATFORM_Y, currentPlayerY);
+        
+        // Ensure platform is within reachable range
+        const platformY = randInt(minHeight, maxHeight);
+        
+        // Check for overlapping platforms
+        const newPlatformBounds = {
+            left: this.lastPlatformX,
+            right: this.lastPlatformX + platformWidth,
+            top: platformY - 25, // Platform hitbox height
+            bottom: platformY + 25
+        };
+        
+        // Check if new platform overlaps with any existing platform
+        const overlappingPlatform = this.platforms.getChildren().find(platform => {
+            const existingBounds = {
+                left: platform.x,
+                right: platform.x + platform.width,
+                top: platform.y - 25,
+                bottom: platform.y + 25
+            };
+            
+            return !(newPlatformBounds.right < existingBounds.left || 
+                    newPlatformBounds.left > existingBounds.right || 
+                    newPlatformBounds.bottom < existingBounds.top || 
+                    newPlatformBounds.top > existingBounds.bottom);
+        });
+        
+        if (overlappingPlatform) {
+            console.log('Platform overlap detected, adjusting position');
+            // If overlap detected, try spawning at a different height
+            const adjustedY = platformY - 100; // Move up by 100 pixels
+            if (adjustedY >= minHeight) {
+                this.spawnPlatform(this.lastPlatformX, adjustedY, platformWidth);
+            } else {
+                // If can't move up, try moving down
+                const adjustedY = platformY + 100;
+                if (adjustedY <= maxHeight) {
+                    this.spawnPlatform(this.lastPlatformX, adjustedY, platformWidth);
+                } else {
+                    // If can't adjust height, skip this platform
+                    console.log('Could not find valid position for platform, skipping');
+                    return;
+                }
+            }
+        } else {
+            this.spawnPlatform(this.lastPlatformX, platformY, platformWidth);
+        }
+        
+        console.log('Platform spawn calculation:', {
+            currentPlayerY,
+            maxJumpHeight: this.MAX_JUMP_HEIGHT,
+            maxAllowedHeight,
+            minHeight,
+            maxHeight,
+            finalPlatformY: platformY,
+            heightDifference: currentPlayerY - platformY,
+            gap,
+            platformBounds: newPlatformBounds
+        });
     }
 
     levelUp() {
         this.level++;
         window.SHARED.level = this.level;
         this.levelText.setText(`Level: ${this.level}`);
-        this.platformSpeed = this.BASE_PLATFORM_SPEED * (1 + this.level * 0.1);
+        // More gradual speed increase
+        this.platformSpeed = this.BASE_PLATFORM_SPEED * (1 + this.level * 0.05);
         this.nextLevelAt += 30;
         
         // Visual feedback
@@ -383,19 +476,32 @@ class GameScene extends Phaser.Scene {
     }
 
     loseLife() {
-        console.log('Losing life - Current lives:', this.lives);
-        this.gameOver = true; // Ensure game over flag is set
         this.lives--;
-        console.log('Lives after decrement:', this.lives);
+        this.livesText.setText(`Lives: ${this.lives}`);
         window.SHARED.lives = this.lives;
-        window.SHARED.resources = this.resources;
         
         if (this.lives <= 0) {
-            console.log('Game Over triggered');
-            this.scene.start('GameOver', { score: this.score });
+            console.log('Game Over: No lives remaining');
+            this.gameOver = true;
+            if (this.player?.body) {
+                this.player.setVelocity(0, 0);
+                this.player.body.enable = false;
+            }
+            
+            // Show game over screen
+            this.scene.start('GameOver', {
+                score: this.score,
+                level: this.level,
+                resources: this.resources
+            });
         } else {
-            console.log('Restarting scene');
-            this.scene.restart();
+            // Reset player position and state
+            this.player.setPosition(this.PLAYER_X, 100);
+            this.player.setVelocity(0, 0);
+            this.jumping = false;
+            this.onPlatform = false;
+            this.doubleJumpAvailable = false;
+            this.justSnapped = false;
         }
     }
 
@@ -409,5 +515,11 @@ class GameScene extends Phaser.Scene {
 
     resString() {
         return `Resources: Stone ${this.resources.stone}  Ice ${this.resources.ice}  Energy ${this.resources.energy}`;
+    }
+
+    getRightmostPlatform() {
+        return this.platforms.getChildren().reduce((rightmost, platform) => {
+            return platform.x > rightmost.x ? platform : rightmost;
+        }, this.platforms.getChildren()[0]);
     }
 }
