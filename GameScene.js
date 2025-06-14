@@ -32,9 +32,9 @@ class GameScene extends Phaser.Scene {
 
         // Constants
         this.PLAYER_X = 100;
-        this.GRAVITY = 1000;
-        this.JUMP_FORCE = -400;  // Reduced for better control
-        this.DOUBLE_JUMP_FORCE = -350;  // Reduced for better control
+        this.GRAVITY = 800;  // Reduced gravity
+        this.JUMP_FORCE = -500;  // Increased jump force
+        this.DOUBLE_JUMP_FORCE = -450;  // Increased double jump force
         this.BASE_PLATFORM_SPEED = 1.5 * 60;
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
@@ -49,8 +49,8 @@ class GameScene extends Phaser.Scene {
         console.log('Max jump height:', this.MAX_JUMP_HEIGHT);
         
         // Platform generation
-        this.MIN_PLATFORM_Y = 200;  // Lower minimum height
-        this.MAX_PLATFORM_Y = 350;  // Lower maximum height
+        this.MIN_PLATFORM_Y = 100;  // Lower minimum height
+        this.MAX_PLATFORM_Y = 250;  // Lower maximum height
         this.lastPlatformX = 0;
         this.MIN_PLATFORM_GAP = 60;  // Increased minimum gap
         this.MAX_PLATFORM_GAP = 100;  // Increased maximum gap
@@ -88,7 +88,7 @@ class GameScene extends Phaser.Scene {
         this.player.body.setSize(40, 60, true);
         
         // Create starting platform
-        const startPlatform = this.spawnPlatform(100, 400, 200);
+        const startPlatform = this.spawnPlatform(100, 300, 200);  // Lower starting platform
         this.player.y = startPlatform.body.top - this.player.displayHeight / 2 + 1;
         
         // Spawn second platform
@@ -426,12 +426,12 @@ class GameScene extends Phaser.Scene {
         if (overlappingPlatform) {
             console.log('Platform overlap detected, adjusting position');
             // If overlap detected, try spawning at a different height
-            const adjustedY = platformY - 100; // Move up by 100 pixels
+            const adjustedY = platformY - 50; // Reduced adjustment distance
             if (adjustedY >= minHeight) {
                 this.spawnPlatform(this.lastPlatformX, adjustedY, platformWidth);
             } else {
                 // If can't move up, try moving down
-                const adjustedY = platformY + 100;
+                const adjustedY = platformY + 50; // Reduced adjustment distance
                 if (adjustedY <= maxHeight) {
                     this.spawnPlatform(this.lastPlatformX, adjustedY, platformWidth);
                 } else {
