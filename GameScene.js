@@ -88,12 +88,16 @@ class GameScene extends Phaser.Scene {
         this.player.body.setSize(40, 60, true);
         
         // Create starting platform
-        const startPlatform = this.spawnPlatform(100, 300, 200);  // Lower starting platform
-        this.player.y = startPlatform.body.top - this.player.displayHeight / 2 + 1;
+        const startPlatform = this.spawnPlatform(100, 300, 200);
+        // Position player on starting platform
+        this.player.y = startPlatform.y - this.player.displayHeight / 2;
+        this.onPlatform = true;  // Set initial platform state
+        this.jumping = false;
+        this.doubleJumpAvailable = true;
         
         // Spawn second platform
         this.lastPlatformX = 500;
-        this.spawnPlatform(this.lastPlatformX, randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y), 200);
+        this.spawnPlatform(this.lastPlatformX, 250, 200);
         
         // Set up collisions
         this.physics.add.collider(
@@ -117,6 +121,8 @@ class GameScene extends Phaser.Scene {
     }
 
     handleJump() {
+        if (!this.player?.body) return;
+        
         console.log('Jump attempted - State:', {
             onPlatform: this.onPlatform,
             jumping: this.jumping,
@@ -198,7 +204,7 @@ class GameScene extends Phaser.Scene {
             
             if (horizontalOverlap) {
                 // Normal landing check
-                if (this.player.body.touching.down && this.player.body.blocked.down) {
+                if (this.player.body.velocity.y >= 0) {  // Only check when falling
                     const verticalDistance = platformTop - playerBottom;
                     if (verticalDistance >= -10 && verticalDistance <= 10) {
                         console.log('Normal landing detected', {
@@ -209,29 +215,8 @@ class GameScene extends Phaser.Scene {
                         this.onPlatform = true;
                         this.jumping = false;
                         this.doubleJumpAvailable = true;  // Enable double jump on landing
-                        this.player.body.velocity.y = 0;
-                    }
-                }
-                // Backup snap check
-                else if (!this.onPlatform && this.player.body.velocity.y >= 0) {
-                    const verticalDistance = platformTop - playerBottom;
-                    if (verticalDistance > 0 && verticalDistance <= 15) {  // Reduced snap distance
-                        console.log('Backup snap triggered', {
-                            playerY: this.player.y,
-                            platformTop,
-                            verticalDistance,
-                            velocityY: this.player.body.velocity.y
-                        });
-
-                        // Perform the snap
-                        this.player.y = platformTop - this.player.body.height/2;
-                        this.player.body.velocity.y = 0;
-                        this.player.body.updateFromGameObject();
-                        
-                        // Update states
-                        this.onPlatform = true;
-                        this.jumping = false;
-                        this.doubleJumpAvailable = true;  // Enable double jump on snap
+                        this.player.setVelocityY(0);
+                        this.player.y = platformTop - this.player.displayHeight / 2;
                     }
                 }
             }
