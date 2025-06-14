@@ -195,6 +195,63 @@ class GameScene extends Phaser.Scene {
             this.handleJump();
         }
 
+        // Reset platform state at start of frame
+        this.onPlatform = false;
+
+        // Check each platform
+        this.platforms.getChildren().forEach(platform => {
+            // Get collision bounds
+            const playerBottom = this.player.body.bottom;
+            const platformTop = platform.body.top;
+            const playerLeft = this.player.body.left;
+            const playerRight = this.player.body.right;
+            const platformLeft = platform.body.left;
+            const platformRight = platform.body.right;
+
+            // Check horizontal overlap
+            const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
+            
+            if (horizontalOverlap) {
+                // Normal landing check
+                if (this.player.body.touching.down && this.player.body.blocked.down) {
+                    const verticalDistance = platformTop - playerBottom;
+                    if (verticalDistance >= -5 && verticalDistance <= 5) {
+                        console.log('Normal landing detected', {
+                            playerY: this.player.y,
+                            platformTop,
+                            verticalDistance
+                        });
+                        this.onPlatform = true;
+                        this.jumping = false;
+                        this.doubleJumpAvailable = false;
+                        this.player.body.velocity.y = 0;
+                    }
+                }
+                // Backup snap check
+                else if (!this.onPlatform && this.player.body.velocity.y >= 0) {
+                    const verticalDistance = platformTop - playerBottom;
+                    if (verticalDistance > 0 && verticalDistance <= 20) {
+                        console.log('Backup snap triggered', {
+                            playerY: this.player.y,
+                            platformTop,
+                            verticalDistance,
+                            velocityY: this.player.body.velocity.y
+                        });
+
+                        // Perform the snap
+                        this.player.y = platformTop - this.player.body.height/2;
+                        this.player.body.velocity.y = 0;
+                        this.player.body.updateFromGameObject();
+                        
+                        // Update states
+                        this.onPlatform = true;
+                        this.jumping = false;
+                        this.doubleJumpAvailable = false;
+                    }
+                }
+            }
+        });
+
         // Update score based on height
         const newScore = Math.floor(this.player.y / 10);
         if (newScore > this.score) {
