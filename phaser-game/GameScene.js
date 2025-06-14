@@ -44,13 +44,16 @@ class GameScene extends Phaser.Scene {
         this.doubleJumpAvailable = false;
         this.justSnapped = false;
         
+        // Calculate max jump height: h = (v²) / (2 * g)
+        this.MAX_JUMP_HEIGHT = (this.JUMP_FORCE * this.JUMP_FORCE) / (2 * this.GRAVITY);
+        console.log('Max jump height:', this.MAX_JUMP_HEIGHT);
+        
         // Platform generation
-        const maxJumpHeight = (this.JUMP_FORCE * this.JUMP_FORCE) / (2 * this.GRAVITY);
         this.MIN_PLATFORM_Y = 300;
-        this.MAX_PLATFORM_Y = Math.min(400, 350 + maxJumpHeight * 0.6); // Reduced max height
+        this.MAX_PLATFORM_Y = 400;
         this.lastPlatformX = 0;
         this.MIN_PLATFORM_GAP = 60;
-        this.MAX_PLATFORM_GAP = 100; // Reduced max gap
+        this.MAX_PLATFORM_GAP = 100;
         
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
@@ -366,16 +369,36 @@ class GameScene extends Phaser.Scene {
         // Use fixed safe MIN/MAX gap
         const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
         this.lastPlatformX = Math.max(800, this.lastPlatformX + gap);
+        
         // Random platform width between 100 and 150
         const platformWidth = randInt(100, 150);
-        // Ensure platforms are reachable
-        const maxHeight = Math.min(
-            this.MAX_PLATFORM_Y,
-            this.player.y + maxJumpHeight * 0.8 // Ensure platform is reachable from current height
-        );
+        
+        // Get current player position
+        const currentPlayerY = this.player.y;
+        
+        // Calculate maximum allowed height for new platform
+        const maxAllowedHeight = currentPlayerY - this.MAX_JUMP_HEIGHT;
+        
+        // Calculate platform height range
+        const minHeight = Math.max(this.MIN_PLATFORM_Y, maxAllowedHeight);
+        const maxHeight = Math.min(this.MAX_PLATFORM_Y, currentPlayerY);
+        
+        // Ensure platform is within reachable range
+        const platformY = randInt(minHeight, maxHeight);
+        
+        console.log('Platform spawn calculation:', {
+            currentPlayerY,
+            maxJumpHeight: this.MAX_JUMP_HEIGHT,
+            maxAllowedHeight,
+            minHeight,
+            maxHeight,
+            finalPlatformY: platformY,
+            heightDifference: currentPlayerY - platformY
+        });
+        
         this.spawnPlatform(
             this.lastPlatformX,
-            randInt(this.MIN_PLATFORM_Y, maxHeight),
+            platformY,
             platformWidth
         );
     }
