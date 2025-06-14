@@ -222,6 +222,11 @@ class GameScene extends Phaser.Scene {
                 platform.destroy();
             }
         });
+
+        // Move platforms
+        this.platforms.getChildren().forEach(platform => {
+            platform.setVelocityX(-this.platformSpeed);
+        });
     }
 
     onPlayerLanding(player, platform) {
@@ -422,6 +427,7 @@ class GameScene extends Phaser.Scene {
     loseLife() {
         this.lives--;
         this.livesText.setText(`Lives: ${this.lives}`);
+        window.SHARED.lives = this.lives;
         
         if (this.lives <= 0) {
             console.log('Game Over: No lives remaining');
@@ -433,9 +439,10 @@ class GameScene extends Phaser.Scene {
             }
             
             // Show game over screen
-            this.scene.start('GameOverScene', {
+            this.scene.start('GameOver', {
                 score: this.score,
-                level: this.level
+                level: this.level,
+                resources: this.resources
             });
         } else {
             // Reset player position and state
