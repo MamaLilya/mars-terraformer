@@ -19,6 +19,7 @@ class GameScene extends Phaser.Scene {
         this.level = this.level || 1;
         this.lives = this.lives || 3;
         this.resources = this.resources || 0;
+        this.score = 0;
 
         // Create lava effect at the bottom of the screen
         this.lava = this.add.rectangle(0, this.game.config.height - 50, this.game.config.width, 50, 0xff0000, 0.5);
@@ -96,6 +97,76 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    createUI() {
+        // Create score text
+        this.scoreText = this.add.text(16, 16, 'Score: 0', {
+            fontSize: '32px',
+            fill: '#fff'
+        });
+        this.scoreText.setScrollFactor(0);
+
+        // Create level text
+        this.levelText = this.add.text(16, 56, `Level: ${this.level}`, {
+            fontSize: '32px',
+            fill: '#fff'
+        });
+        this.levelText.setScrollFactor(0);
+
+        // Create lives text
+        this.livesText = this.add.text(16, 96, `Lives: ${this.lives}`, {
+            fontSize: '32px',
+            fill: '#fff'
+        });
+        this.livesText.setScrollFactor(0);
+    }
+
+    spawnPlatform() {
+        const lastPlatform = this.getRightmostPlatform();
+        if (!lastPlatform) return;
+
+        const minX = lastPlatform.x + 200;
+        const maxX = lastPlatform.x + 400;
+        const x = Phaser.Math.Between(minX, maxX);
+
+        const minY = 100;
+        const maxY = 250;
+        const y = Phaser.Math.Between(minY, maxY);
+
+        const platform = this.platforms.create(x, y, 'platform');
+        platform.setScale(2, 1).refreshBody();
+    }
+
+    getRightmostPlatform() {
+        let rightmost = null;
+        let maxX = -Infinity;
+
+        this.platforms.getChildren().forEach(platform => {
+            if (platform.x > maxX) {
+                maxX = platform.x;
+                rightmost = platform;
+            }
+        });
+
+        return rightmost;
+    }
+
+    gameOver() {
+        this.lives--;
+        this.livesText.setText(`Lives: ${this.lives}`);
+
+        if (this.lives <= 0) {
+            // Game over
+            this.scene.start('GameOverScene', { score: this.score });
+        } else {
+            // Reset player position
+            this.player.setPosition(100, 300);
+            this.player.setVelocity(0, 0);
+            this.playerState.onPlatform = true;
+            this.playerState.jumping = false;
+            this.playerState.doubleJumpAvailable = true;
+        }
+    }
+
     update() {
         // Debug logging
         console.log('Update frame →', {
@@ -132,6 +203,13 @@ class GameScene extends Phaser.Scene {
             }
         });
 
+        // Update score based on height
+        const newScore = Math.floor(this.player.y / 10);
+        if (newScore > this.score) {
+            this.score = newScore;
+            this.scoreText.setText(`Score: ${this.score}`);
+        }
+
         // Check for game over
         if (this.player.y > this.game.config.height - 100) {
             console.log('Game Over: Player too close to lava');
@@ -162,31 +240,6 @@ class GameScene extends Phaser.Scene {
                 this.player.setTint(0x00aaff);
             }
         }
-    }
-
-    spawnPlatform(x, y, width) {
-        // Create platform texture if it doesn't exist
-        if (!this.textures.exists('platform_' + width)) {
-            const graphics = this.add.graphics();
-            graphics.fillStyle(0x888888);
-            graphics.fillRect(0, 0, width, 20);
-            graphics.generateTexture('platform_' + width, width, 20);
-            graphics.destroy();
-        }
-        // Create platform sprite in the dynamic group
-        const platform = this.platforms.create(x, y, 'platform_' + width);
-        // Ensure proper physics settings
-        platform.setImmovable(true);
-        platform.body.allowGravity = false;
-        platform.body.setSize(width, 30, true); // Increased hitbox height
-        platform.body.setOffset(0, -10); // Increased offset for better collision
-        // Log platform position and width
-        console.log('Spawned platform:', {x, y, width, hitboxHeight: 30, offset: -10});
-        // 70% chance to spawn a collectible
-        if (Math.random() < 0.7) {
-            this.spawnCollectible(x, y - 40);
-        }
-        return platform;
     }
 
     spawnCollectible(x, y) {
@@ -368,21 +421,7 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    setupUI() {
-        const textStyle = { fontSize: '24px', color: '#fff' };
-        this.scoreText = this.add.text(20, 20, `Score: ${this.score}`, textStyle);
-        this.levelText = this.add.text(20, 50, `Level: ${this.level}`, textStyle);
-        this.livesText = this.add.text(20, 80, `Lives: ${this.lives}`, textStyle);
-        this.resText = this.add.text(20, 110, this.resString(), textStyle);
-    }
-
     resString() {
         return `Resources: Stone ${this.resources.stone}  Ice ${this.resources.ice}  Energy ${this.resources.energy}`;
-    }
-
-    getRightmostPlatform() {
-        return this.platforms.getChildren().reduce((rightmost, platform) => {
-            return platform.x > rightmost.x ? platform : rightmost;
-        }, this.platforms.getChildren()[0]);
     }
 }
