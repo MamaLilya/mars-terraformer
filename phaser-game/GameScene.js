@@ -17,43 +17,41 @@ class GameScene extends Phaser.Scene {
     create() {
         // Game state
         this.level = window.SHARED.level || 1;
-        this.lives = window.SHARED.lives || 3; // Default to 3 lives if not set
+        this.lives = window.SHARED.lives || 3;
         this.resources = window.SHARED.resources || { stone: 0, ice: 0, energy: 0 };
         this.score = 0;
         this.platformsLanded = 0;
-        this.nextLevelAt = 30; // Level up every 30 platforms
-        this.gameOver = false; // Add game over flag
+        this.nextLevelAt = 30;
+        this.gameOver = false;
         this.justJumped = false;
 
-        // Input setup - SPACE key only for jumping
+        // Input setup
         this.cursors = this.input.keyboard.createCursorKeys();
         this.input.keyboard.on('keydown-SPACE', this.handleJump, this);
-        
-        // Touch/click input for mobile support
         this.input.on('pointerdown', this.handleJump, this);
 
-        // Constants matching Pygame values
+        // Constants
         this.PLAYER_X = 100;
-        this.GRAVITY = 1000;       // Standard Phaser gravity
-        this.JUMP_FORCE = -400;    // Standard Phaser jump force
-        this.DOUBLE_JUMP_FORCE = -350; // Slightly weaker double jump
-        this.BASE_PLATFORM_SPEED = 1.5 * 60; // Reduced platform speed for simpler gameplay
+        this.GRAVITY = 1000;
+        this.JUMP_FORCE = -400;
+        this.DOUBLE_JUMP_FORCE = -350;
+        this.BASE_PLATFORM_SPEED = 1.5 * 60;
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
-        // Jump state flags
-        this.jumping = false;           // True when in any jump (first or double)
-        this.onPlatform = false;        // True only when standing on platform
-        this.doubleJumpAvailable = false; // True after first jump, false after using double jump
+        // Jump state
+        this.jumping = false;
+        this.onPlatform = false;
+        this.doubleJumpAvailable = false;
         this.justSnapped = false;
         
-        // Platform generation constants - adjusted to match jump height
-        // Calculate max jump height based on physics
-        // h = (v0^2) / (2g) where v0 is initial velocity (JUMP_FORCE)
+        // Platform generation
         const maxJumpHeight = (this.JUMP_FORCE * this.JUMP_FORCE) / (2 * this.GRAVITY);
-        this.MIN_PLATFORM_Y = 300;  // Keep minimum height reasonable
-        this.MAX_PLATFORM_Y = Math.min(450, 350 + maxJumpHeight * 0.7); // Ensure platforms are reachable
+        this.MIN_PLATFORM_Y = 300;
+        this.MAX_PLATFORM_Y = Math.min(400, 350 + maxJumpHeight * 0.6); // Reduced max height
         this.lastPlatformX = 0;
-     
+        this.MIN_PLATFORM_GAP = 60;
+        this.MAX_PLATFORM_GAP = 100; // Reduced max gap
+        
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
         
@@ -127,8 +125,6 @@ class GameScene extends Phaser.Scene {
         const t_apex = -this.JUMP_FORCE / this.GRAVITY;
         const t_total = 2 * t_apex;
         this.maxJumpDistance = this.platformSpeed * t_total;
-        this.MIN_PLATFORM_GAP = 60;  // Reduced minimum gap
-        this.MAX_PLATFORM_GAP = 120; // Reduced maximum gap
     }
 
     handleJump() {
@@ -164,6 +160,7 @@ class GameScene extends Phaser.Scene {
     update() {
         if (!this.player?.body) return;
 
+        // Check for falling below screen
         if (this.player.y > this.physics.world.bounds.height + 100) {
             console.log('GAME OVER - Player fell off screen');
             this.loseLife();
@@ -371,9 +368,14 @@ class GameScene extends Phaser.Scene {
         this.lastPlatformX = Math.max(800, this.lastPlatformX + gap);
         // Random platform width between 100 and 150
         const platformWidth = randInt(100, 150);
+        // Ensure platforms are reachable
+        const maxHeight = Math.min(
+            this.MAX_PLATFORM_Y,
+            this.player.y + maxJumpHeight * 0.8 // Ensure platform is reachable from current height
+        );
         this.spawnPlatform(
             this.lastPlatformX,
-            randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y),
+            randInt(this.MIN_PLATFORM_Y, maxHeight),
             platformWidth
         );
     }
@@ -398,7 +400,7 @@ class GameScene extends Phaser.Scene {
 
     loseLife() {
         console.log('Losing life - Current lives:', this.lives);
-        this.gameOver = true; // Ensure game over flag is set
+        this.gameOver = true;
         this.lives--;
         console.log('Lives after decrement:', this.lives);
         window.SHARED.lives = this.lives;
@@ -406,7 +408,11 @@ class GameScene extends Phaser.Scene {
         
         if (this.lives <= 0) {
             console.log('Game Over triggered - No lives left');
-            this.scene.start('GameOver', { score: this.score });
+            this.scene.start('GameOver', { 
+                score: this.score,
+                level: this.level,
+                resources: this.resources
+            });
         } else {
             console.log('Restarting scene - Lives remaining:', this.lives);
             // Reset game state
