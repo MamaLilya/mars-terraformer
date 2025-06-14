@@ -33,8 +33,8 @@ class GameScene extends Phaser.Scene {
         // Constants
         this.PLAYER_X = 100;
         this.GRAVITY = 1000;
-        this.JUMP_FORCE = -500;
-        this.DOUBLE_JUMP_FORCE = -450;
+        this.JUMP_FORCE = -400;  // Reduced for better control
+        this.DOUBLE_JUMP_FORCE = -350;  // Reduced for better control
         this.BASE_PLATFORM_SPEED = 1.5 * 60;
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
@@ -49,26 +49,32 @@ class GameScene extends Phaser.Scene {
         console.log('Max jump height:', this.MAX_JUMP_HEIGHT);
         
         // Platform generation
-        this.MIN_PLATFORM_Y = 300;
-        this.MAX_PLATFORM_Y = 400;
+        this.MIN_PLATFORM_Y = 200;  // Lower minimum height
+        this.MAX_PLATFORM_Y = 350;  // Lower maximum height
         this.lastPlatformX = 0;
-        this.MIN_PLATFORM_GAP = 40;
-        this.MAX_PLATFORM_GAP = 80;
+        this.MIN_PLATFORM_GAP = 60;  // Increased minimum gap
+        this.MAX_PLATFORM_GAP = 100;  // Increased maximum gap
+        this.MIN_PLATFORM_DISTANCE_FROM_BOTTOM = 100;  // Minimum distance from bottom
         
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
         
+        // Add lava effect at bottom
+        this.lava = this.add.rectangle(0, this.cameras.main.height - 20, 800, 20, 0xff0000);
+        this.lava.setOrigin(0, 0);
+        this.lava.alpha = 0.5;
+        
         // Configure physics
         this.physics.world.gravity.y = this.GRAVITY;
         
-        // Create dynamic platforms group - better for moving platforms
+        // Create dynamic platforms group
         this.platforms = this.physics.add.group({
             allowGravity: false,
             immovable: true
         });
         this.collectibles = this.physics.add.staticGroup();
         
-        // Create player sprite and enable physics
+        // Create player sprite
         const graphics = this.add.graphics();
         graphics.fillStyle(0x00aaff);
         graphics.fillRect(0, 0, 40, 60);
@@ -78,20 +84,12 @@ class GameScene extends Phaser.Scene {
         this.player = this.physics.add.sprite(this.PLAYER_X, 300, 'player');
         this.player.setBounce(0);
         this.player.setCollideWorldBounds(true);
-        // Set player physics properties
         this.player.body.setGravityY(this.GRAVITY);
-        this.player.body.setSize(40, 60, true); // Match visual size
+        this.player.body.setSize(40, 60, true);
         
         // Create starting platform
         const startPlatform = this.spawnPlatform(100, 400, 200);
-        // Position player on starting platform, aligned with platform body top
         this.player.y = startPlatform.body.top - this.player.displayHeight / 2 + 1;
-        console.log('Initial player position:', {
-            x: this.player.x,
-            y: this.player.y,
-            platformTop: startPlatform.body.top,
-            platformY: startPlatform.y
-        });
         
         // Spawn second platform
         this.lastPlatformX = 500;
@@ -162,7 +160,6 @@ class GameScene extends Phaser.Scene {
 
     update() {
         if (this.gameOver) {
-            // Stop all player movement when game is over
             if (this.player?.body) {
                 this.player.setVelocity(0, 0);
                 this.player.body.enable = false;
@@ -170,9 +167,9 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        // Check if player has fallen below the screen
-        if (this.player?.y > this.cameras.main.height) {
-            console.log('Game Over: Player fell below screen');
+        // Check if player is too close to bottom (lava)
+        if (this.player?.y > this.cameras.main.height - this.MIN_PLATFORM_DISTANCE_FROM_BOTTOM) {
+            console.log('Game Over: Player too close to lava');
             this.gameOver = true;
             this.loseLife();
             return;
@@ -215,7 +212,7 @@ class GameScene extends Phaser.Scene {
                 // Normal landing check
                 if (this.player.body.touching.down && this.player.body.blocked.down) {
                     const verticalDistance = platformTop - playerBottom;
-                    if (verticalDistance >= -5 && verticalDistance <= 5) {
+                    if (verticalDistance >= -10 && verticalDistance <= 10) {
                         console.log('Normal landing detected', {
                             playerY: this.player.y,
                             platformTop,
@@ -223,14 +220,14 @@ class GameScene extends Phaser.Scene {
                         });
                         this.onPlatform = true;
                         this.jumping = false;
-                        this.doubleJumpAvailable = false;
+                        this.doubleJumpAvailable = true;  // Enable double jump on landing
                         this.player.body.velocity.y = 0;
                     }
                 }
                 // Backup snap check
                 else if (!this.onPlatform && this.player.body.velocity.y >= 0) {
                     const verticalDistance = platformTop - playerBottom;
-                    if (verticalDistance > 0 && verticalDistance <= 20) {
+                    if (verticalDistance > 0 && verticalDistance <= 15) {  // Reduced snap distance
                         console.log('Backup snap triggered', {
                             playerY: this.player.y,
                             platformTop,
@@ -246,7 +243,7 @@ class GameScene extends Phaser.Scene {
                         // Update states
                         this.onPlatform = true;
                         this.jumping = false;
-                        this.doubleJumpAvailable = false;
+                        this.doubleJumpAvailable = true;  // Enable double jump on snap
                     }
                 }
             }
@@ -497,7 +494,6 @@ class GameScene extends Phaser.Scene {
         
         if (this.lives <= 0) {
             console.log('Game Over: No lives remaining');
-            // Stop all game mechanics
             this.gameOver = true;
             if (this.player?.body) {
                 this.player.setVelocity(0, 0);
