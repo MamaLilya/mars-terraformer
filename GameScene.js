@@ -30,56 +30,35 @@ class GameScene extends Phaser.Scene {
         this.add.rectangle(0, 0, this.game.config.width, this.game.config.height, 0x111111)
             .setOrigin(0, 0);
 
-        // Create lava at bottom
-        this.lava = this.add.rectangle(0, this.game.config.height - 20, this.game.config.width, 20, 0xff0000)
-            .setOrigin(0, 0);
-
         // Create platforms group
         this.platforms = this.physics.add.staticGroup();
 
         // Create starting platform
         const startPlatform = this.platforms.create(100, 300, 'platform');
-        startPlatform.setScale(1, 1).refreshBody();
-        startPlatform.setData('isStartingPlatform', true);
+        startPlatform.setImmovable(true);
+        startPlatform.body.allowGravity = false;
+        startPlatform.setData('isMoving', true);
 
         // Create player
-        this.player = this.physics.add.sprite(100, 300 - 40, 'player'); // Position player above platform
-        this.player.setBounce(0);
+        this.player = this.physics.add.sprite(100, 260, 'player');
+        this.player.setBounce(0.1);
         this.player.setCollideWorldBounds(true);
         this.player.setGravityY(800);
-        this.player.setVelocityX(0);
-        this.player.setVelocityY(0);
 
-        // Player state
-        this.onPlatform = true;
-        this.jumping = false;
-        this.doubleJumpAvailable = true;
-
-        // Create second platform
-        const secondPlatform = this.platforms.create(500, 250, 'platform');
-        secondPlatform.setScale(1, 1).refreshBody();
-
-        // Add collision between player and platforms
+        // Set up collisions
         this.physics.add.collider(this.player, this.platforms, (player, platform) => {
-            if (player.body.velocity.y > 0) {
-                const playerBottom = player.y + player.height / 2;
-                const platformTop = platform.y - platform.height / 2;
-                
-                if (Math.abs(playerBottom - platformTop) < 10) {
-                    console.log('Landing on platform:', {
-                        playerY: player.y,
-                        platformY: platform.y,
-                        velocityY: player.body.velocity.y
-                    });
-                    
-                    player.setVelocityY(0);
-                    player.y = platformTop - player.height / 2;
-                    this.onPlatform = true;
-                    this.jumping = false;
-                    this.doubleJumpAvailable = true;
-                }
+            if (player.body.velocity.y > 0) { // Only trigger when falling
+                player.setVelocityY(0);
+                player.setPosition(player.x, platform.y - player.height / 2);
+                player.setData('onPlatform', true);
+                player.setData('jumping', false);
+                player.setData('doubleJumpAvailable', true);
             }
         });
+
+        // Create lava effect
+        this.lava = this.add.rectangle(400, 580, 800, 40, 0xff0000, 0.5);
+        this.physics.add.existing(this.lava, true);
 
         // Create UI
         this.scoreText = this.add.text(16, 16, 'Score: 0', {
@@ -125,8 +104,7 @@ class GameScene extends Phaser.Scene {
 
         console.log('Game initialized:', {
             playerPosition: { x: this.player.x, y: this.player.y },
-            startPlatform: { x: startPlatform.x, y: startPlatform.y },
-            secondPlatform: { x: secondPlatform.x, y: secondPlatform.y }
+            startPlatform: { x: startPlatform.x, y: startPlatform.y }
         });
     }
 
@@ -169,44 +147,41 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        // Debug logging
-        console.log('Update frame →', {
-            playerY: this.player.y,
-            velocityY: this.player.body.velocity.y,
-            onPlatform: this.onPlatform,
-            jumping: this.jumping,
-            doubleJumpAvailable: this.doubleJumpAvailable
-        });
-
-        // Handle jumping
-        if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-            console.log('Jump attempted - State:', {
-                onPlatform: this.onPlatform,
-                jumping: this.jumping,
-                doubleJumpAvailable: this.doubleJumpAvailable,
-                velocityY: this.player.body.velocity.y
-            });
-            
-            if (this.onPlatform) {
-                // Regular jump
-                this.player.setVelocityY(-500);
-                this.jumping = true;
-                this.onPlatform = false;
-            } else if (this.doubleJumpAvailable && this.jumping) {
-                // Double jump
-                this.player.setVelocityY(-450);
-                this.doubleJumpAvailable = false;
-            }
-        }
-
         // Move platforms
         this.platforms.getChildren().forEach(platform => {
-            if (!platform.getData('isStartingPlatform')) {
+            if (platform.getData('isMoving')) {
                 platform.x -= 2;
                 if (platform.x < -platform.width) {
                     platform.destroy();
                 }
             }
+        });
+
+        // Check for game over
+        if (this.player.y > 550) {
+            this.gameOver();
+            return;
+        }
+
+        // Handle jumping
+        if (this.cursors.up.isDown) {
+            if (this.player.getData('onPlatform')) {
+                this.player.setVelocityY(-500);
+                this.player.setData('jumping', true);
+                this.player.setData('onPlatform', false);
+            } else if (this.player.getData('doubleJumpAvailable') && this.player.getData('jumping')) {
+                this.player.setVelocityY(-450);
+                this.player.setData('doubleJumpAvailable', false);
+            }
+        }
+
+        // Debug logging
+        console.log('Update frame →', {
+            playerY: this.player.y,
+            velocityY: this.player.body.velocity.y,
+            onPlatform: this.player.getData('onPlatform'),
+            jumping: this.player.getData('jumping'),
+            doubleJumpAvailable: this.player.getData('doubleJumpAvailable')
         });
 
         // Update score based on height
@@ -215,23 +190,22 @@ class GameScene extends Phaser.Scene {
             this.score = newScore;
             this.scoreText.setText(`Score: ${this.score}`);
         }
+    }
 
-        // Check for game over
-        if (this.player.y > this.game.config.height - 100) {
-            console.log('Game Over: Player too close to lava');
-            this.lives--;
-            this.livesText.setText(`Lives: ${this.lives}`);
+    gameOver() {
+        this.gameOver = true;
+        this.lives--;
+        this.livesText.setText(`Lives: ${this.lives}`);
 
-            if (this.lives <= 0) {
-                this.gameOver = true;
-            } else {
-                // Reset player position
-                this.player.setPosition(100, 300 - 40);
-                this.player.setVelocity(0, 0);
-                this.onPlatform = true;
-                this.jumping = false;
-                this.doubleJumpAvailable = true;
-            }
+        if (this.lives <= 0) {
+            this.gameOver = true;
+        } else {
+            // Reset player position
+            this.player.setPosition(100, 300 - 40);
+            this.player.setVelocity(0, 0);
+            this.player.setData('onPlatform', true);
+            this.player.setData('jumping', false);
+            this.player.setData('doubleJumpAvailable', true);
         }
     }
 }
