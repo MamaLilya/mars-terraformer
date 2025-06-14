@@ -33,8 +33,8 @@ class GameScene extends Phaser.Scene {
         // Constants
         this.PLAYER_X = 100;
         this.GRAVITY = 1000;
-        this.JUMP_FORCE = -400;
-        this.DOUBLE_JUMP_FORCE = -350;
+        this.JUMP_FORCE = -500;
+        this.DOUBLE_JUMP_FORCE = -450;
         this.BASE_PLATFORM_SPEED = 1.5 * 60;
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
