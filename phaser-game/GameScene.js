@@ -22,7 +22,7 @@ class GameScene extends Phaser.Scene {
         this.score = 0;
         this.platformsLanded = 0;
         this.nextLevelAt = 30;
-        this.gameOver = false;
+        this.isGameOver = false;
         this.justJumped = false;
 
         // Input setup
@@ -159,7 +159,7 @@ class GameScene extends Phaser.Scene {
     }
 
     update() {
-        if (this.gameOver) {
+        if (this.isGameOver) {
             if (this.player?.body) {
                 this.player.setVelocity(0, 0);
                 this.player.body.enable = false;
@@ -170,7 +170,7 @@ class GameScene extends Phaser.Scene {
         // Check if player is too close to bottom (lava)
         if (this.player?.y > this.cameras.main.height - this.MIN_PLATFORM_DISTANCE_FROM_BOTTOM) {
             console.log('Game Over: Player too close to lava');
-            this.gameOver = true;
+            this.isGameOver = true;
             this.loseLife();
             return;
         }
@@ -401,80 +401,55 @@ class GameScene extends Phaser.Scene {
     }
 
     spawnNextPlatform() {
-        // Use fixed safe MIN/MAX gap
+        // Calculate max allowed height based on player's current position
+        const maxAllowedHeight = this.player.y - 80; // Max jump height is 80px
+        
+        // Ensure maxAllowedHeight is within game bounds
+        const minY = Math.max(this.MIN_PLATFORM_Y, maxAllowedHeight);
+        const maxY = Math.min(this.MAX_PLATFORM_Y, maxAllowedHeight);
+        
+        // Calculate new platform position
         const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
-        this.lastPlatformX = Math.max(700, this.lastPlatformX + gap);
+        const newX = this.lastPlatformX + gap;
+        const newY = randInt(minY, maxY);
         
-        // Random platform width between 100 and 150
-        const platformWidth = randInt(100, 150);
-        
-        // Get current player position
-        const currentPlayerY = this.player.y;
-        
-        // Calculate maximum allowed height for new platform (80 pixels above player)
-        const maxAllowedHeight = currentPlayerY - 80;
-        
-        // Calculate platform height range
-        const minHeight = Math.max(this.MIN_PLATFORM_Y, maxAllowedHeight);
-        const maxHeight = Math.min(this.MAX_PLATFORM_Y, currentPlayerY);
-        
-        // Ensure platform is within reachable range
-        const platformY = randInt(minHeight, maxHeight);
-        
-        // Check for overlapping platforms
-        const newPlatformBounds = {
-            left: this.lastPlatformX,
-            right: this.lastPlatformX + platformWidth,
-            top: platformY - 25, // Platform hitbox height
-            bottom: platformY + 25
-        };
-        
-        // Check if new platform overlaps with any existing platform
-        const overlappingPlatform = this.platforms.getChildren().find(platform => {
-            const existingBounds = {
-                left: platform.x,
-                right: platform.x + platform.width,
-                top: platform.y - 25,
-                bottom: platform.y + 25
-            };
-            
-            return !(newPlatformBounds.right < existingBounds.left || 
-                    newPlatformBounds.left > existingBounds.right || 
-                    newPlatformBounds.bottom < existingBounds.top || 
-                    newPlatformBounds.top > existingBounds.bottom);
+        console.log('Platform spawn attempt:', {
+            playerY: this.player.y,
+            maxAllowedHeight,
+            newY,
+            isWithinJumpRange: newY >= maxAllowedHeight
         });
-        
-        if (overlappingPlatform) {
-            console.log('Platform overlap detected, adjusting position');
-            // If overlap detected, try spawning at a different height
-            const adjustedY = platformY - 50; // Move up by 50 pixels
-            if (adjustedY >= minHeight) {
-                this.spawnPlatform(this.lastPlatformX, adjustedY, platformWidth);
-            } else {
-                // If can't move up, try moving down
-                const adjustedY = platformY + 50;
-                if (adjustedY <= maxHeight) {
-                    this.spawnPlatform(this.lastPlatformX, adjustedY, platformWidth);
-                } else {
-                    // If can't adjust height, skip this platform
-                    console.log('Could not find valid position for platform, skipping');
-                    return;
-                }
+
+        // Check for overlapping platforms
+        let overlapping = false;
+        this.platforms.getChildren().forEach(platform => {
+            const horizontalOverlap = Math.abs(platform.x - newX) < 100;
+            const verticalOverlap = Math.abs(platform.y - newY) < 50;
+            if (horizontalOverlap && verticalOverlap) {
+                overlapping = true;
+            }
+        });
+
+        if (!overlapping) {
+            this.lastPlatformX = newX;
+            const platform = this.spawnPlatform(newX, newY, 200);
+            
+            // Add debug log for platform spawn
+            console.log('Platform spawned:', {
+                platformY: platform.y,
+                playerY: this.player.y,
+                distance: platform.y - this.player.y,
+                isWithinJumpRange: platform.y - this.player.y <= 80
+            });
+            
+            // Spawn collectible above platform
+            if (Math.random() < 0.3) {
+                this.spawnCollectible(newX, newY - 50);
             }
         } else {
-            this.spawnPlatform(this.lastPlatformX, platformY, platformWidth);
+            // If overlapping, try again with adjusted height
+            this.spawnNextPlatform();
         }
-        
-        console.log('Platform spawn calculation:', {
-            currentPlayerY,
-            maxAllowedHeight,
-            minHeight,
-            maxHeight,
-            finalPlatformY: platformY,
-            heightDifference: currentPlayerY - platformY,
-            gap,
-            platformBounds: newPlatformBounds
-        });
     }
 
     levelUp() {
@@ -497,31 +472,16 @@ class GameScene extends Phaser.Scene {
 
     loseLife() {
         this.lives--;
-        this.livesText.setText(`Lives: ${this.lives}`);
-        window.SHARED.lives = this.lives;
-        
         if (this.lives <= 0) {
-            console.log('Game Over: No lives remaining');
-            this.gameOver = true;
-            if (this.player?.body) {
-                this.player.setVelocity(0, 0);
-                this.player.body.enable = false;
-            }
-            
-            // Show game over screen
-            this.scene.start('GameOver', {
-                score: this.score,
-                level: this.level,
-                resources: this.resources
-            });
+            // Game over - return to menu
+            window.SHARED.lives = 3;
+            window.SHARED.level = 1;
+            window.SHARED.resources = { stone: 0, ice: 0, energy: 0 };
+            this.scene.start('MenuScene');
         } else {
-            // Reset player position and state
-            this.player.setPosition(this.PLAYER_X, 100);
-            this.player.setVelocity(0, 0);
-            this.jumping = false;
-            this.onPlatform = false;
-            this.doubleJumpAvailable = false;
-            this.justSnapped = false;
+            // Reset level
+            window.SHARED.lives = this.lives;
+            this.scene.restart();
         }
     }
 
