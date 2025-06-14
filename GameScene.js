@@ -15,255 +15,128 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
-        // Game state
-        this.level = window.SHARED.level || 1;
-        this.lives = window.SHARED.lives || 3;
-        this.resources = window.SHARED.resources || { stone: 0, ice: 0, energy: 0 };
-        this.score = 0;
-        this.platformsLanded = 0;
-        this.nextLevelAt = 30;
-        this.gameOver = false;
-        this.justJumped = false;
+        // Set default values if not defined
+        this.level = this.level || 1;
+        this.lives = this.lives || 3;
+        this.resources = this.resources || 0;
 
-        // Input setup
-        this.cursors = this.input.keyboard.createCursorKeys();
-        this.input.keyboard.on('keydown-SPACE', this.handleJump, this);
-        this.input.on('pointerdown', this.handleJump, this);
-
-        // Constants
-        this.PLAYER_X = 100;
-        this.GRAVITY = 800;  // Reduced gravity
-        this.JUMP_FORCE = -500;  // Increased jump force
-        this.DOUBLE_JUMP_FORCE = -450;  // Increased double jump force
-        this.BASE_PLATFORM_SPEED = 1.5 * 60;
-        this.platformSpeed = this.BASE_PLATFORM_SPEED;
-        
-        // Jump state
-        this.jumping = false;
-        this.onPlatform = false;
-        this.doubleJumpAvailable = false;
-        this.justSnapped = false;
-        
-        // Calculate max jump height: h = (v²) / (2 * g)
-        this.MAX_JUMP_HEIGHT = (this.JUMP_FORCE * this.JUMP_FORCE) / (2 * this.GRAVITY);
-        console.log('Max jump height:', this.MAX_JUMP_HEIGHT);
-        
-        // Platform generation
-        this.MIN_PLATFORM_Y = 100;  // Lower minimum height
-        this.MAX_PLATFORM_Y = 250;  // Lower maximum height
-        this.lastPlatformX = 0;
-        this.MIN_PLATFORM_GAP = 60;  // Increased minimum gap
-        this.MAX_PLATFORM_GAP = 100;  // Increased maximum gap
-        this.MIN_PLATFORM_DISTANCE_FROM_BOTTOM = 100;  // Minimum distance from bottom
-        
-        // Background
-        this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
-        
-        // Add lava effect at bottom
-        this.lava = this.add.rectangle(0, this.cameras.main.height - 20, 800, 20, 0xff0000);
+        // Create lava effect at the bottom of the screen
+        this.lava = this.add.rectangle(0, this.game.config.height - 50, this.game.config.width, 50, 0xff0000, 0.5);
         this.lava.setOrigin(0, 0);
-        this.lava.alpha = 0.5;
-        
-        // Configure physics
-        this.physics.world.gravity.y = this.GRAVITY;
-        
-        // Create dynamic platforms group
-        this.platforms = this.physics.add.group({
-            allowGravity: false,
-            immovable: true
-        });
-        this.collectibles = this.physics.add.staticGroup();
-        
-        // Create player sprite
-        const graphics = this.add.graphics();
-        graphics.fillStyle(0x00aaff);
-        graphics.fillRect(0, 0, 40, 60);
-        graphics.generateTexture('player', 40, 60);
-        graphics.destroy();
-     
-        this.player = this.physics.add.sprite(this.PLAYER_X, 300, 'player');
-        this.player.setBounce(0);
+
+        // Create player
+        this.player = this.physics.add.sprite(100, 300, 'player');
+        this.player.setBounce(0.1);
         this.player.setCollideWorldBounds(true);
-        this.player.body.setGravityY(this.GRAVITY);
-        this.player.body.setSize(40, 60, true);
-        
+        this.player.setGravityY(800); // Reduced gravity
+        this.player.setVelocityX(0);
+        this.player.setVelocityY(0); // Ensure no initial velocity
+
+        // Player state
+        this.playerState = {
+            onPlatform: false,
+            jumping: false,
+            doubleJumpAvailable: false,
+            lastPlatformY: 300
+        };
+
+        // Create platforms group
+        this.platforms = this.physics.add.staticGroup();
+
         // Create starting platform
-        const startPlatform = this.spawnPlatform(100, 300, 200);
-        // Position player on starting platform
-        this.player.y = startPlatform.y - this.player.displayHeight / 2;
-        this.player.body.velocity.y = 0;  // Ensure no initial velocity
-        this.onPlatform = true;  // Set initial platform state
-        this.jumping = false;
-        this.doubleJumpAvailable = true;
-        
-        // Spawn second platform
-        this.lastPlatformX = 500;
-        this.spawnPlatform(this.lastPlatformX, 250, 200);
-        
-        // Set up collisions
-        this.physics.add.collider(
-            this.player, 
-            this.platforms,
-            this.onPlayerLanding,
-            null,
-            this
-        );
-        
-        this.physics.add.overlap(
-            this.player,
-            this.collectibles,
-            this.collectItem,
-            null,
-            this
-        );
+        const startPlatform = this.platforms.create(100, 300, 'platform');
+        startPlatform.setScale(2, 1).refreshBody();
+        startPlatform.setData('isStartingPlatform', true);
 
-        // Set up UI
-        this.setupUI();
-    }
+        // Create second platform
+        const secondPlatform = this.platforms.create(500, 250, 'platform');
+        secondPlatform.setScale(2, 1).refreshBody();
 
-    handleJump() {
-        if (!this.player?.body) return;
-        
-        console.log('Jump attempted - State:', {
-            onPlatform: this.onPlatform,
-            jumping: this.jumping,
-            doubleJumpAvailable: this.doubleJumpAvailable,
-            velocityY: this.player.body.velocity.y
-        });
-
-        if (this.onPlatform && !this.jumping) {
-            // First jump
-            console.log('First jump triggered');
-            this.player.setVelocityY(this.JUMP_FORCE);
-            this.jumping = true;
-            this.onPlatform = false;
-            console.log('First jump triggered →', {
-                playerY: this.player.y,
-                velocityY: this.player.body.velocity.y
-            });
-        } else if (this.jumping && this.doubleJumpAvailable) {
-            // Double jump
-            console.log('Double jump triggered');
-            this.player.setVelocityY(this.DOUBLE_JUMP_FORCE);
-            this.doubleJumpAvailable = false;
-            console.log('Double jump triggered →', {
-                playerY: this.player.y,
-                velocityY: this.player.body.velocity.y
-            });
-        }
-    }
-
-    update() {
-        if (this.gameOver) {
-            if (this.player?.body) {
-                this.player.setVelocity(0, 0);
-                this.player.body.enable = false;
-            }
-            return;
-        }
-
-        // Check if player is too close to bottom (lava)
-        if (this.player?.y > this.cameras.main.height - this.MIN_PLATFORM_DISTANCE_FROM_BOTTOM) {
-            console.log('Game Over: Player too close to lava');
-            this.gameOver = true;
-            this.loseLife();
-            return;
-        }
-
-        // Handle player movement
-        if (this.cursors.left.isDown) {
-            this.player.setVelocityX(-160);
-        } else if (this.cursors.right.isDown) {
-            this.player.setVelocityX(160);
-        } else {
-            this.player.setVelocityX(0);
-        }
-
-        // Keep player at fixed X position
-        this.player.x = this.PLAYER_X;
-
-        // Handle jumping
-        if (this.cursors.up.isDown || this.cursors.space.isDown) {
-            this.handleJump();
-        }
-
-        // Reset platform state at start of frame
-        this.onPlatform = false;
-
-        // Check each platform
-        this.platforms.getChildren().forEach(platform => {
-            // Get collision bounds
-            const playerBottom = this.player.body.bottom;
-            const platformTop = platform.body.top;
-            const playerLeft = this.player.body.left;
-            const playerRight = this.player.body.right;
-            const platformLeft = platform.body.left;
-            const platformRight = platform.body.right;
-
-            // Check horizontal overlap
-            const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
-            
-            if (horizontalOverlap) {
-                // Normal landing check
-                if (this.player.body.velocity.y >= 0) {  // Only check when falling
-                    const verticalDistance = platformTop - playerBottom;
-                    if (verticalDistance >= -10 && verticalDistance <= 10) {
-                        console.log('Normal landing detected', {
-                            playerY: this.player.y,
-                            platformTop,
-                            verticalDistance
-                        });
-                        this.onPlatform = true;
-                        this.jumping = false;
-                        this.doubleJumpAvailable = true;  // Enable double jump on landing
-                        this.player.setVelocityY(0);
-                        this.player.y = platformTop - this.player.displayHeight / 2;
-                    }
+        // Add collision between player and platforms
+        this.physics.add.collider(this.player, this.platforms, (player, platform) => {
+            // Only trigger landing when falling
+            if (player.body.velocity.y > 0) {
+                // Calculate the bottom of the player and top of the platform
+                const playerBottom = player.y + player.height / 2;
+                const platformTop = platform.y - platform.height / 2;
+                
+                // Check if player is actually landing on top of the platform
+                if (Math.abs(playerBottom - platformTop) < 10) {
+                    player.setVelocityY(0);
+                    player.y = platformTop - player.height / 2;
+                    this.playerState.onPlatform = true;
+                    this.playerState.jumping = false;
+                    this.playerState.doubleJumpAvailable = true;
+                    this.playerState.lastPlatformY = platform.y;
                 }
             }
         });
 
-        // Update score based on height
-        const newScore = Math.floor(this.player.y / 10);
-        if (newScore > this.score) {
-            this.score = newScore;
-            this.scoreText.setText(`Score: ${this.score}`);
-        }
+        // Create UI
+        this.createUI();
 
-        // Check for level progression
-        if (this.platformsLanded >= this.nextLevelAt) {
-            this.level++;
-            this.nextLevelAt += 30;
-            this.platformSpeed = this.BASE_PLATFORM_SPEED * (1 + (this.level - 1) * 0.05);
-            this.levelText.setText(`Level: ${this.level}`);
-        }
+        // Set up input
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-        // Spawn new platforms
-        const rightmostPlatform = this.getRightmostPlatform();
-        if (rightmostPlatform && rightmostPlatform.x < this.cameras.main.width + 200) {
-            this.spawnNextPlatform();
-        }
+        // Set up camera
+        this.cameras.main.setBounds(0, 0, 2000, this.game.config.height);
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        this.cameras.main.setDeadzone(100, 50);
 
-        // Move platforms
-        this.platforms.getChildren().forEach(platform => {
-            platform.setVelocityX(-this.platformSpeed);
+        // Set up world bounds
+        this.physics.world.setBounds(0, 0, 2000, this.game.config.height);
+
+        // Start spawning platforms
+        this.time.addEvent({
+            delay: 2000,
+            callback: this.spawnPlatform,
+            callbackScope: this,
+            loop: true
         });
+    }
 
-        // Remove platforms that are off screen
-        this.platforms.getChildren().forEach(platform => {
-            if (platform.x < -platform.width) {
-                platform.destroy();
-            }
-        });
-
+    update() {
         // Debug logging
         console.log('Update frame →', {
             playerY: this.player.y,
             velocityY: this.player.body.velocity.y,
-            onPlatform: this.onPlatform,
-            jumping: this.jumping,
-            doubleJumpAvailable: this.doubleJumpAvailable
+            onPlatform: this.playerState.onPlatform,
+            jumping: this.playerState.jumping,
+            doubleJumpAvailable: this.playerState.doubleJumpAvailable
         });
+
+        // Handle jumping
+        if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+            console.log('Jump attempted - State:', this.playerState);
+            
+            if (this.playerState.onPlatform) {
+                // Regular jump from platform
+                this.player.setVelocityY(-500); // Increased jump force
+                this.playerState.jumping = true;
+                this.playerState.onPlatform = false;
+            } else if (this.playerState.doubleJumpAvailable && this.playerState.jumping) {
+                // Double jump
+                this.player.setVelocityY(-450); // Increased double jump force
+                this.playerState.doubleJumpAvailable = false;
+            }
+        }
+
+        // Move platforms
+        this.platforms.getChildren().forEach(platform => {
+            if (!platform.getData('isStartingPlatform')) {
+                platform.x -= 2;
+                if (platform.x < -platform.width) {
+                    platform.destroy();
+                }
+            }
+        });
+
+        // Check for game over
+        if (this.player.y > this.game.config.height - 100) {
+            console.log('Game Over: Player too close to lava');
+            this.gameOver();
+        }
     }
 
     onPlayerLanding(player, platform) {
