@@ -52,8 +52,8 @@ class GameScene extends Phaser.Scene {
         this.MIN_PLATFORM_Y = 300;
         this.MAX_PLATFORM_Y = 400;
         this.lastPlatformX = 0;
-        this.MIN_PLATFORM_GAP = 60;
-        this.MAX_PLATFORM_GAP = 100;
+        this.MIN_PLATFORM_GAP = 40;
+        this.MAX_PLATFORM_GAP = 80;
         
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
@@ -368,7 +368,7 @@ class GameScene extends Phaser.Scene {
     spawnNextPlatform() {
         // Use fixed safe MIN/MAX gap
         const gap = randInt(this.MIN_PLATFORM_GAP, this.MAX_PLATFORM_GAP);
-        this.lastPlatformX = Math.max(800, this.lastPlatformX + gap);
+        this.lastPlatformX = Math.max(700, this.lastPlatformX + gap);
         
         // Random platform width between 100 and 150
         const platformWidth = randInt(100, 150);
@@ -393,7 +393,8 @@ class GameScene extends Phaser.Scene {
             minHeight,
             maxHeight,
             finalPlatformY: platformY,
-            heightDifference: currentPlayerY - platformY
+            heightDifference: currentPlayerY - platformY,
+            gap
         });
         
         this.spawnPlatform(
