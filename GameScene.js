@@ -6,9 +6,18 @@ class GameScene extends Phaser.Scene {
     }
 
     preload() {
-        // Load assets
-        this.load.image('player', 'assets/player.png');
-        this.load.image('platform', 'assets/platform.png');
+        // Create simple graphics for player and platform
+        const playerGraphics = this.add.graphics();
+        playerGraphics.fillStyle(0x00aaff);
+        playerGraphics.fillRect(0, 0, 40, 60);
+        playerGraphics.generateTexture('player', 40, 60);
+        playerGraphics.destroy();
+
+        const platformGraphics = this.add.graphics();
+        platformGraphics.fillStyle(0x888888);
+        platformGraphics.fillRect(0, 0, 200, 20);
+        platformGraphics.generateTexture('platform', 200, 20);
+        platformGraphics.destroy();
     }
 
     create() {
@@ -43,11 +52,11 @@ class GameScene extends Phaser.Scene {
 
         // Create starting platform
         const startPlatform = this.platforms.create(100, 300, 'platform');
-        startPlatform.setScale(2, 1).refreshBody();
+        startPlatform.setScale(1, 1).refreshBody();
 
         // Create second platform
         const secondPlatform = this.platforms.create(500, 250, 'platform');
-        secondPlatform.setScale(2, 1).refreshBody();
+        secondPlatform.setScale(1, 1).refreshBody();
 
         // Add collision between player and platforms
         this.physics.add.collider(this.player, this.platforms, (player, platform) => {
@@ -78,6 +87,15 @@ class GameScene extends Phaser.Scene {
         });
         this.livesText.setScrollFactor(0);
 
+        // Game over text (initially hidden)
+        this.gameOverText = this.add.text(this.game.config.width / 2, this.game.config.height / 2, 'Game Over!', {
+            fontSize: '64px',
+            fill: '#ff0000'
+        });
+        this.gameOverText.setOrigin(0.5);
+        this.gameOverText.setScrollFactor(0);
+        this.gameOverText.setVisible(false);
+
         // Set up input
         this.cursors = this.input.keyboard.createCursorKeys();
         this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
@@ -107,7 +125,7 @@ class GameScene extends Phaser.Scene {
         const y = Phaser.Math.Between(100, 250);
 
         const platform = this.platforms.create(x, y, 'platform');
-        platform.setScale(2, 1).refreshBody();
+        platform.setScale(1, 1).refreshBody();
     }
 
     getRightmostPlatform() {
@@ -125,7 +143,16 @@ class GameScene extends Phaser.Scene {
     }
 
     update() {
-        if (this.gameOver) return;
+        if (this.gameOver) {
+            // Show game over text
+            this.gameOverText.setVisible(true);
+            
+            // Reset game when space is pressed
+            if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+                this.scene.restart();
+            }
+            return;
+        }
 
         // Handle jumping
         if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
@@ -163,7 +190,6 @@ class GameScene extends Phaser.Scene {
 
             if (this.lives <= 0) {
                 this.gameOver = true;
-                this.scene.start('GameOverScene', { score: this.score });
             } else {
                 // Reset player position
                 this.player.setPosition(100, 300);
