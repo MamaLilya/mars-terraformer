@@ -33,12 +33,12 @@ class GameScene extends Phaser.Scene {
         // Constants
         this.PLAYER_X = 100;
         this.GRAVITY = 1000;
-        this.JUMP_FORCE = -400;  // Reduced for better control
-        this.DOUBLE_JUMP_FORCE = -350;  // Reduced for better control
+        this.JUMP_FORCE = -400;
+        this.DOUBLE_JUMP_FORCE = -350;
         this.BASE_PLATFORM_SPEED = 1.5 * 60;
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
-        // Jump state
+        // Jump state - initialize all flags
         this.jumping = false;
         this.onPlatform = false;
         this.doubleJumpAvailable = false;
@@ -49,12 +49,12 @@ class GameScene extends Phaser.Scene {
         console.log('Max jump height:', this.MAX_JUMP_HEIGHT);
         
         // Platform generation
-        this.MIN_PLATFORM_Y = 200;  // Lower minimum height
-        this.MAX_PLATFORM_Y = 350;  // Lower maximum height
+        this.MIN_PLATFORM_Y = 200;
+        this.MAX_PLATFORM_Y = 350;
         this.lastPlatformX = 0;
-        this.MIN_PLATFORM_GAP = 60;  // Increased minimum gap
-        this.MAX_PLATFORM_GAP = 100;  // Increased maximum gap
-        this.MIN_PLATFORM_DISTANCE_FROM_BOTTOM = 100;  // Minimum distance from bottom
+        this.MIN_PLATFORM_GAP = 60;
+        this.MAX_PLATFORM_GAP = 100;
+        this.MIN_PLATFORM_DISTANCE_FROM_BOTTOM = 100;
         
         // Background
         this.add.rectangle(0, 0, 800, 600, 0x111111).setOrigin(0, 0);
@@ -67,10 +67,11 @@ class GameScene extends Phaser.Scene {
         // Configure physics
         this.physics.world.gravity.y = this.GRAVITY;
         
-        // Create dynamic platforms group
+        // Create dynamic platforms group with proper physics settings
         this.platforms = this.physics.add.group({
             allowGravity: false,
-            immovable: true
+            immovable: true,
+            collideWorldBounds: true
         });
         this.collectibles = this.physics.add.staticGroup();
         
@@ -95,7 +96,7 @@ class GameScene extends Phaser.Scene {
         this.lastPlatformX = 500;
         this.spawnPlatform(this.lastPlatformX, randInt(this.MIN_PLATFORM_Y, this.MAX_PLATFORM_Y), 200);
         
-        // Set up collisions
+        // Set up collisions with proper callbacks
         this.physics.add.collider(
             this.player, 
             this.platforms,
@@ -293,57 +294,67 @@ class GameScene extends Phaser.Scene {
     }
 
     onPlayerLanding(player, platform) {
-        const verticalDistance = platform.body.top - player.body.bottom;
-        if (verticalDistance >= -5 && verticalDistance <= 5) {
-            console.log('Physics landing detected', {
-                playerY: player.y,
-                platformTop: platform.body.top,
-                verticalDistance
-            });
+        // Debug log collision
+        console.log('Collision detected:', {
+            playerY: player.y,
+            platformY: platform.y,
+            playerBottom: player.body.bottom,
+            platformTop: platform.body.top,
+            verticalDistance: platform.body.top - player.body.bottom
+        });
+
+        // Check if player is landing on top of platform
+        if (player.body.velocity.y >= 0 && 
+            player.body.bottom >= platform.body.top - 10 && 
+            player.body.bottom <= platform.body.top + 10) {
             
-            player.y = platform.body.top - player.displayHeight / 2;
+            // Update player state
+            this.onPlatform = true;
+            this.jumping = false;
+            this.doubleJumpAvailable = true;
             player.body.velocity.y = 0;
+            
+            // Snap player to platform
+            player.y = platform.body.top - player.body.height/2;
             player.body.updateFromGameObject();
             
-            this.jumping = false;
-            this.doubleJumpAvailable = false;
-            this.player.setTint(0x00aaff);
-            this.onPlatform = true;
-            this.justSnapped = true;
+            console.log('Player landed on platform:', {
+                playerY: player.y,
+                platformY: platform.y,
+                onPlatform: this.onPlatform,
+                jumping: this.jumping,
+                doubleJumpAvailable: this.doubleJumpAvailable
+            });
         }
     }
 
     spawnPlatform(x, y, width) {
-        // Create platform texture if it doesn't exist
-        if (!this.textures.exists('platform_' + width)) {
-            const graphics = this.add.graphics();
-            graphics.fillStyle(0x888888);
-            graphics.fillRect(0, 0, width, 20);
-            graphics.generateTexture('platform_' + width, width, 20);
-            graphics.destroy();
-        }
-        // Create platform sprite in the dynamic group
-        const platform = this.platforms.create(x, y, 'platform_' + width);
-        // Ensure proper physics settings
-        platform.setImmovable(true);
+        // Create platform with proper physics body
+        const platform = this.platforms.create(x, y, null);
+        platform.setSize(width, 20);
+        platform.setOffset(0, -10);  // Center the hitbox vertically
+        platform.body.setImmovable(true);
         platform.body.allowGravity = false;
-        platform.body.setSize(width, 30, true); // Increased hitbox height
-        platform.body.setOffset(0, -10); // Increased offset for better collision
         
-        // Debug log for platform distance
-        console.log('Platform distance check:', {
-            platformY: y,
-            playerY: this.player.y,
-            distance: this.player.y - y,
-            isReachable: this.player.y - y <= 80
+        // Create visual representation
+        const graphics = this.add.graphics();
+        graphics.fillStyle(0x00ff00);
+        graphics.fillRect(0, 0, width, 20);
+        graphics.generateTexture('platform', width, 20);
+        graphics.destroy();
+        
+        platform.setTexture('platform');
+        
+        // Debug log platform creation
+        console.log('Platform created:', {
+            x: platform.x,
+            y: platform.y,
+            width: platform.width,
+            height: platform.height,
+            bodyOffset: platform.body.offset,
+            bodySize: platform.body.size
         });
         
-        // Log platform position and width
-        console.log('Spawned platform:', {x, y, width, hitboxHeight: 30, offset: -10});
-        // 70% chance to spawn a collectible
-        if (Math.random() < 0.7) {
-            this.spawnCollectible(x, y - 40);
-        }
         return platform;
     }
 
@@ -402,7 +413,7 @@ class GameScene extends Phaser.Scene {
 
     spawnNextPlatform() {
         // Calculate max allowed height based on player's current position
-        const maxAllowedHeight = this.player.y - 80; // Max jump height is 80px
+        const maxAllowedHeight = this.player.y - this.MAX_JUMP_HEIGHT;
         
         // Ensure maxAllowedHeight is within game bounds
         const minY = Math.max(this.MIN_PLATFORM_Y, maxAllowedHeight);
@@ -417,7 +428,8 @@ class GameScene extends Phaser.Scene {
             playerY: this.player.y,
             maxAllowedHeight,
             newY,
-            isWithinJumpRange: newY >= maxAllowedHeight
+            isWithinJumpRange: newY >= maxAllowedHeight,
+            maxJumpHeight: this.MAX_JUMP_HEIGHT
         });
 
         // Check for overlapping platforms
@@ -439,7 +451,7 @@ class GameScene extends Phaser.Scene {
                 platformY: platform.y,
                 playerY: this.player.y,
                 distance: platform.y - this.player.y,
-                isWithinJumpRange: platform.y - this.player.y <= 80
+                isWithinJumpRange: platform.y - this.player.y <= this.MAX_JUMP_HEIGHT
             });
             
             // Spawn collectible above platform
@@ -471,6 +483,8 @@ class GameScene extends Phaser.Scene {
     }
 
     loseLife() {
+        if (this.isGameOver) return;  // Prevent multiple calls
+        
         this.lives--;
         if (this.lives <= 0) {
             // Game over - return to menu
