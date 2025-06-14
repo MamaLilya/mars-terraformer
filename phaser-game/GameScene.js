@@ -329,6 +329,15 @@ class GameScene extends Phaser.Scene {
         platform.body.allowGravity = false;
         platform.body.setSize(width, 30, true); // Increased hitbox height
         platform.body.setOffset(0, -10); // Increased offset for better collision
+        
+        // Debug log for platform distance
+        console.log('Platform distance check:', {
+            platformY: y,
+            playerY: this.player.y,
+            distance: this.player.y - y,
+            isReachable: this.player.y - y <= 80
+        });
+        
         // Log platform position and width
         console.log('Spawned platform:', {x, y, width, hitboxHeight: 30, offset: -10});
         // 70% chance to spawn a collectible
@@ -402,8 +411,8 @@ class GameScene extends Phaser.Scene {
         // Get current player position
         const currentPlayerY = this.player.y;
         
-        // Calculate maximum allowed height for new platform
-        const maxAllowedHeight = currentPlayerY - this.MAX_JUMP_HEIGHT;
+        // Calculate maximum allowed height for new platform (80 pixels above player)
+        const maxAllowedHeight = currentPlayerY - 80;
         
         // Calculate platform height range
         const minHeight = Math.max(this.MIN_PLATFORM_Y, maxAllowedHeight);
@@ -438,12 +447,12 @@ class GameScene extends Phaser.Scene {
         if (overlappingPlatform) {
             console.log('Platform overlap detected, adjusting position');
             // If overlap detected, try spawning at a different height
-            const adjustedY = platformY - 100; // Move up by 100 pixels
+            const adjustedY = platformY - 50; // Move up by 50 pixels
             if (adjustedY >= minHeight) {
                 this.spawnPlatform(this.lastPlatformX, adjustedY, platformWidth);
             } else {
                 // If can't move up, try moving down
-                const adjustedY = platformY + 100;
+                const adjustedY = platformY + 50;
                 if (adjustedY <= maxHeight) {
                     this.spawnPlatform(this.lastPlatformX, adjustedY, platformWidth);
                 } else {
@@ -458,7 +467,6 @@ class GameScene extends Phaser.Scene {
         
         console.log('Platform spawn calculation:', {
             currentPlayerY,
-            maxJumpHeight: this.MAX_JUMP_HEIGHT,
             maxAllowedHeight,
             minHeight,
             maxHeight,
