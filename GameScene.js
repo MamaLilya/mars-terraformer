@@ -91,6 +91,7 @@ class GameScene extends Phaser.Scene {
         const startPlatform = this.spawnPlatform(100, 300, 200);
         // Position player on starting platform
         this.player.y = startPlatform.y - this.player.displayHeight / 2;
+        this.player.body.velocity.y = 0;  // Ensure no initial velocity
         this.onPlatform = true;  // Set initial platform state
         this.jumping = false;
         this.doubleJumpAvailable = true;
@@ -243,16 +244,16 @@ class GameScene extends Phaser.Scene {
             this.spawnNextPlatform();
         }
 
+        // Move platforms
+        this.platforms.getChildren().forEach(platform => {
+            platform.setVelocityX(-this.platformSpeed);
+        });
+
         // Remove platforms that are off screen
         this.platforms.getChildren().forEach(platform => {
             if (platform.x < -platform.width) {
                 platform.destroy();
             }
-        });
-
-        // Move platforms
-        this.platforms.getChildren().forEach(platform => {
-            platform.setVelocityX(-this.platformSpeed);
         });
 
         // Debug logging
