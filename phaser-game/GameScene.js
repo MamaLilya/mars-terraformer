@@ -161,13 +161,23 @@ class GameScene extends Phaser.Scene {
     }
 
     update() {
-        if (!this.player?.body) return;
+        if (this.gameOver) return;
 
-        // Check for falling below screen
-        if (this.player.y > this.physics.world.bounds.height + 100) {
-            console.log('GAME OVER - Player fell off screen');
+        // Check if player has fallen below the screen
+        if (this.player.y > this.cameras.main.height) {
+            console.log('Game Over: Player fell below screen');
+            this.gameOver = true;
             this.loseLife();
             return;
+        }
+
+        // Handle player movement
+        if (this.cursors.left.isDown) {
+            this.player.setVelocityX(-160);
+        } else if (this.cursors.right.isDown) {
+            this.player.setVelocityX(160);
+        } else {
+            this.player.setVelocityX(0);
         }
 
         // Keep player at fixed X position
