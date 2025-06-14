@@ -131,32 +131,32 @@ class GameScene extends Phaser.Scene {
     }
 
     handleJump() {
-        if (!this.player?.body) return;
         console.log('Jump attempted - State:', {
             onPlatform: this.onPlatform,
             jumping: this.jumping,
             doubleJumpAvailable: this.doubleJumpAvailable,
             velocityY: this.player.body.velocity.y
         });
-        // First jump: only when on platform and not jumping
+
         if (this.onPlatform && !this.jumping) {
+            // First jump
             console.log('First jump triggered');
-            this.player.body.velocity.y = this.JUMP_FORCE;
+            this.player.setVelocityY(this.JUMP_FORCE);
             this.jumping = true;
             this.onPlatform = false;
-            this.doubleJumpAvailable = true;
-            this.player.setTint(0x00ff00);
-            this.justJumped = true;
-            console.log('First jump triggered → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y);
-        }
-        // Double jump: only when in air, already jumping, and double jump available
-        else if (!this.onPlatform && this.jumping && this.doubleJumpAvailable) {
+            console.log('First jump triggered →', {
+                playerY: this.player.y,
+                velocityY: this.player.body.velocity.y
+            });
+        } else if (this.jumping && this.doubleJumpAvailable) {
+            // Double jump
             console.log('Double jump triggered');
-            this.player.body.velocity.y = this.DOUBLE_JUMP_FORCE; // Use weaker double jump force
+            this.player.setVelocityY(this.DOUBLE_JUMP_FORCE);
             this.doubleJumpAvailable = false;
-            this.player.setTint(0xffff00);
-            this.justJumped = true;
-            console.log('Double jump triggered → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y);
+            console.log('Double jump triggered →', {
+                playerY: this.player.y,
+                velocityY: this.player.body.velocity.y
+            });
         }
     }
 
@@ -283,6 +283,15 @@ class GameScene extends Phaser.Scene {
         // Move platforms
         this.platforms.getChildren().forEach(platform => {
             platform.setVelocityX(-this.platformSpeed);
+        });
+
+        // Debug logging
+        console.log('Update frame →', {
+            playerY: this.player.y,
+            velocityY: this.player.body.velocity.y,
+            onPlatform: this.onPlatform,
+            jumping: this.jumping,
+            doubleJumpAvailable: this.doubleJumpAvailable
         });
     }
 
