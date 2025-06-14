@@ -266,23 +266,27 @@ class GameScene extends Phaser.Scene {
     }
 
     onPlayerLanding(player, platform) {
-        const verticalDistance = platform.body.top - player.body.bottom;
-        if (verticalDistance >= -10 && verticalDistance <= 10) {
-            console.log('Physics landing detected', {
-                playerY: player.y,
-                platformTop: platform.body.top,
-                verticalDistance
-            });
-            
-            player.y = platform.body.top - player.displayHeight / 2;
-            player.body.velocity.y = 0;
-            player.body.updateFromGameObject();
-            
-            this.jumping = false;
-            this.doubleJumpAvailable = true;
-            this.player.setTint(0x00aaff);
-            this.onPlatform = true;
-            this.justSnapped = true;
+        // Only handle landing when falling
+        if (player.body.velocity.y >= 0) {
+            const verticalDistance = platform.body.top - player.body.bottom;
+            if (verticalDistance >= -10 && verticalDistance <= 10) {
+                console.log('Physics landing detected', {
+                    playerY: player.y,
+                    platformTop: platform.body.top,
+                    verticalDistance
+                });
+                
+                // Snap player to platform
+                player.y = platform.body.top - player.displayHeight / 2;
+                player.body.velocity.y = 0;
+                player.body.updateFromGameObject();
+                
+                // Update states
+                this.jumping = false;
+                this.doubleJumpAvailable = true;
+                this.onPlatform = true;
+                this.player.setTint(0x00aaff);
+            }
         }
     }
 
