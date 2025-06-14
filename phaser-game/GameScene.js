@@ -170,78 +170,96 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
+        // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
         this.player.body.setVelocityX(0);
 
+        // Skip frame if we just snapped
         if (this.justSnapped) {
             this.justSnapped = false;
             return;
         }
 
+        // Reset platform state at start of frame
         this.onPlatform = false;
 
+        // Check each platform
         this.platforms.getChildren().forEach(platform => {
+            // Get collision bounds
+            const playerBottom = this.player.body.bottom;
+            const platformTop = platform.body.top;
             const playerLeft = this.player.body.left;
             const playerRight = this.player.body.right;
             const platformLeft = platform.body.left;
             const platformRight = platform.body.right;
-            
+
+            // Check horizontal overlap
             const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
             
             if (horizontalOverlap) {
+                // Normal landing check
                 if (this.player.body.touching.down && this.player.body.blocked.down) {
-                    if (this.player.body.bottom <= platform.body.top + 5) {
+                    const verticalDistance = platformTop - playerBottom;
+                    if (verticalDistance >= -5 && verticalDistance <= 5) {
+                        console.log('Normal landing detected', {
+                            playerY: this.player.y,
+                            platformTop,
+                            verticalDistance
+                        });
                         this.onPlatform = true;
                         this.jumping = false;
                         this.doubleJumpAvailable = false;
                         this.player.body.velocity.y = 0;
                     }
                 }
+                // Backup snap check
                 else if (!this.onPlatform && this.player.body.velocity.y >= 0) {
-                    const verticalDistance = platform.body.top - this.player.body.bottom;
-                    if (verticalDistance > 0 && verticalDistance <= 25) {
-                        console.log(`Backup snap → verticalDistance: ${verticalDistance}, playerY: ${this.player.y}, platformTop: ${platform.body.top}`);
-                        
-                        // Snap to platform and reset all states
-                        this.player.setPosition(this.player.x, platform.body.top - this.player.body.height/2);
+                    const verticalDistance = platformTop - playerBottom;
+                    if (verticalDistance > 0 && verticalDistance <= 20) {
+                        console.log('Backup snap triggered', {
+                            playerY: this.player.y,
+                            platformTop,
+                            verticalDistance,
+                            velocityY: this.player.body.velocity.y
+                        });
+
+                        // Perform the snap
+                        this.player.y = platformTop - this.player.body.height/2;
                         this.player.body.velocity.y = 0;
                         this.player.body.updateFromGameObject();
+                        
+                        // Update states
                         this.onPlatform = true;
                         this.jumping = false;
                         this.doubleJumpAvailable = false;
                         this.justSnapped = true;
-                        
-                        console.log(`After snap → playerY: ${this.player.y}, velocityY: ${this.player.body.velocity.y}, onPlatform: ${this.onPlatform}`);
+
+                        console.log('After snap', {
+                            playerY: this.player.y,
+                            velocityY: this.player.body.velocity.y,
+                            onPlatform: this.onPlatform
+                        });
                     }
                 }
             }
         });
 
-        // Log player state
-        console.log('Update frame → player.y:', this.player.y, 'velocityY:', this.player.body.velocity.y, 'onPlatform:', this.onPlatform);
-        if (this.onPlatform) {
-            console.log(`Stable on platform → player.y: ${this.player.y}, platform.body.top: ${this.platforms.getChildren()[0].body.top}`);
-        }
+        // Log current state
+        console.log('Frame update', {
+            playerY: this.player.y,
+            velocityY: this.player.body.velocity.y,
+            onPlatform: this.onPlatform,
+            jumping: this.jumping
+        });
 
-        // Move platforms using physics velocity only
-        const platforms = this.platforms.getChildren();
-        for (let i = platforms.length - 1; i >= 0; i--) {
-            const platform = platforms[i];
-            platform.setVelocityX(-this.platformSpeed); // Use physics velocity
+        // Move platforms
+        this.platforms.getChildren().forEach(platform => {
+            platform.setVelocityX(-this.platformSpeed);
             if (platform.x < -100) {
                 platform.destroy();
             }
-        }
-        // Move collectibles visually (if needed)
-        const moveAmount = (this.platformSpeed * this.game.loop.delta) / 1000;
-        const collectibles = this.collectibles.getChildren();
-        for (let i = collectibles.length - 1; i >= 0; i--) {
-            const collectible = collectibles[i];
-            collectible.x -= moveAmount;
-            if (collectible.x < -50) {
-                collectible.destroy();
-            }
-        }
+        });
+
         // Spawn new platform if needed
         if (this.lastPlatformX < 900) {
             this.spawnNextPlatform();
@@ -250,21 +268,22 @@ class GameScene extends Phaser.Scene {
 
     onPlayerLanding(player, platform) {
         const verticalDistance = platform.body.top - player.body.bottom;
-        if (verticalDistance >= -5 && verticalDistance <= 30) { // More forgiving vertical check
-            console.log('Landing on platform', {
-                verticalDistance,
-                playerBottom: player.body.bottom,
-                platformTop: platform.body.top
+        if (verticalDistance >= -5 && verticalDistance <= 5) {
+            console.log('Physics landing detected', {
+                playerY: player.y,
+                platformTop: platform.body.top,
+                verticalDistance
             });
-            player.y = platform.body.top - player.displayHeight / 2 + 1;
+            
+            player.y = platform.body.top - player.displayHeight / 2;
             player.body.velocity.y = 0;
             player.body.updateFromGameObject();
+            
             this.jumping = false;
             this.doubleJumpAvailable = false;
             this.player.setTint(0x00aaff);
             this.onPlatform = true;
             this.justSnapped = true;
-            console.log('Normal landing triggered');
         }
     }
 
