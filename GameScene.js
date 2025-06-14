@@ -34,8 +34,16 @@ class GameScene extends Phaser.Scene {
         this.lava = this.add.rectangle(0, this.game.config.height - 20, this.game.config.width, 20, 0xff0000)
             .setOrigin(0, 0);
 
+        // Create platforms group
+        this.platforms = this.physics.add.staticGroup();
+
+        // Create starting platform
+        const startPlatform = this.platforms.create(100, 300, 'platform');
+        startPlatform.setScale(1, 1).refreshBody();
+        startPlatform.setData('isStartingPlatform', true);
+
         // Create player
-        this.player = this.physics.add.sprite(100, 300, 'player');
+        this.player = this.physics.add.sprite(100, 300 - 40, 'player'); // Position player above platform
         this.player.setBounce(0);
         this.player.setCollideWorldBounds(true);
         this.player.setGravityY(800);
@@ -46,13 +54,6 @@ class GameScene extends Phaser.Scene {
         this.onPlatform = true;
         this.jumping = false;
         this.doubleJumpAvailable = true;
-
-        // Create platforms group
-        this.platforms = this.physics.add.staticGroup();
-
-        // Create starting platform
-        const startPlatform = this.platforms.create(100, 300, 'platform');
-        startPlatform.setScale(1, 1).refreshBody();
 
         // Create second platform
         const secondPlatform = this.platforms.create(500, 250, 'platform');
@@ -65,6 +66,12 @@ class GameScene extends Phaser.Scene {
                 const platformTop = platform.y - platform.height / 2;
                 
                 if (Math.abs(playerBottom - platformTop) < 10) {
+                    console.log('Landing on platform:', {
+                        playerY: player.y,
+                        platformY: platform.y,
+                        velocityY: player.body.velocity.y
+                    });
+                    
                     player.setVelocityY(0);
                     player.y = platformTop - player.height / 2;
                     this.onPlatform = true;
@@ -115,6 +122,12 @@ class GameScene extends Phaser.Scene {
             callbackScope: this,
             loop: true
         });
+
+        console.log('Game initialized:', {
+            playerPosition: { x: this.player.x, y: this.player.y },
+            startPlatform: { x: startPlatform.x, y: startPlatform.y },
+            secondPlatform: { x: secondPlatform.x, y: secondPlatform.y }
+        });
     }
 
     spawnPlatform() {
@@ -126,6 +139,8 @@ class GameScene extends Phaser.Scene {
 
         const platform = this.platforms.create(x, y, 'platform');
         platform.setScale(1, 1).refreshBody();
+
+        console.log('Spawned new platform:', { x, y });
     }
 
     getRightmostPlatform() {
@@ -154,8 +169,24 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
+        // Debug logging
+        console.log('Update frame →', {
+            playerY: this.player.y,
+            velocityY: this.player.body.velocity.y,
+            onPlatform: this.onPlatform,
+            jumping: this.jumping,
+            doubleJumpAvailable: this.doubleJumpAvailable
+        });
+
         // Handle jumping
         if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+            console.log('Jump attempted - State:', {
+                onPlatform: this.onPlatform,
+                jumping: this.jumping,
+                doubleJumpAvailable: this.doubleJumpAvailable,
+                velocityY: this.player.body.velocity.y
+            });
+            
             if (this.onPlatform) {
                 // Regular jump
                 this.player.setVelocityY(-500);
@@ -170,9 +201,11 @@ class GameScene extends Phaser.Scene {
 
         // Move platforms
         this.platforms.getChildren().forEach(platform => {
-            platform.x -= 2;
-            if (platform.x < -platform.width) {
-                platform.destroy();
+            if (!platform.getData('isStartingPlatform')) {
+                platform.x -= 2;
+                if (platform.x < -platform.width) {
+                    platform.destroy();
+                }
             }
         });
 
@@ -185,6 +218,7 @@ class GameScene extends Phaser.Scene {
 
         // Check for game over
         if (this.player.y > this.game.config.height - 100) {
+            console.log('Game Over: Player too close to lava');
             this.lives--;
             this.livesText.setText(`Lives: ${this.lives}`);
 
@@ -192,7 +226,7 @@ class GameScene extends Phaser.Scene {
                 this.gameOver = true;
             } else {
                 // Reset player position
-                this.player.setPosition(100, 300);
+                this.player.setPosition(100, 300 - 40);
                 this.player.setVelocity(0, 0);
                 this.onPlatform = true;
                 this.jumping = false;
