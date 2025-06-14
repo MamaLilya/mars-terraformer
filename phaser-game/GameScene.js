@@ -161,10 +161,17 @@ class GameScene extends Phaser.Scene {
     }
 
     update() {
-        if (this.gameOver) return;
+        if (this.gameOver) {
+            // Stop all player movement when game is over
+            if (this.player?.body) {
+                this.player.setVelocity(0, 0);
+                this.player.body.enable = false;
+            }
+            return;
+        }
 
         // Check if player has fallen below the screen
-        if (this.player.y > this.cameras.main.height) {
+        if (this.player?.y > this.cameras.main.height) {
             console.log('Game Over: Player fell below screen');
             this.gameOver = true;
             this.loseLife();
@@ -182,98 +189,39 @@ class GameScene extends Phaser.Scene {
 
         // Keep player at fixed X position
         this.player.x = this.PLAYER_X;
-        this.player.body.setVelocityX(0);
 
-        // Skip frame if we just snapped
-        if (this.justSnapped) {
-            this.justSnapped = false;
-            return;
+        // Handle jumping
+        if (this.cursors.up.isDown || this.cursors.space.isDown) {
+            this.handleJump();
         }
 
-        // Reset platform state at start of frame
-        this.onPlatform = false;
+        // Update score based on height
+        const newScore = Math.floor(this.player.y / 10);
+        if (newScore > this.score) {
+            this.score = newScore;
+            this.scoreText.setText(`Score: ${this.score}`);
+        }
 
-        // Check each platform
+        // Check for level progression
+        if (this.platformsLanded >= this.nextLevelAt) {
+            this.level++;
+            this.nextLevelAt += 30;
+            this.platformSpeed = this.BASE_PLATFORM_SPEED * (1 + (this.level - 1) * 0.05);
+            this.levelText.setText(`Level: ${this.level}`);
+        }
+
+        // Spawn new platforms
+        const rightmostPlatform = this.getRightmostPlatform();
+        if (rightmostPlatform && rightmostPlatform.x < this.cameras.main.width + 200) {
+            this.spawnNextPlatform();
+        }
+
+        // Remove platforms that are off screen
         this.platforms.getChildren().forEach(platform => {
-            // Get collision bounds
-            const playerBottom = this.player.body.bottom;
-            const platformTop = platform.body.top;
-            const playerLeft = this.player.body.left;
-            const playerRight = this.player.body.right;
-            const platformLeft = platform.body.left;
-            const platformRight = platform.body.right;
-
-            // Check horizontal overlap
-            const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
-            
-            if (horizontalOverlap) {
-                // Normal landing check
-                if (this.player.body.touching.down && this.player.body.blocked.down) {
-                    const verticalDistance = platformTop - playerBottom;
-                    if (verticalDistance >= -5 && verticalDistance <= 5) {
-                        console.log('Normal landing detected', {
-                            playerY: this.player.y,
-                            platformTop,
-                            verticalDistance
-                        });
-                        this.onPlatform = true;
-                        this.jumping = false;
-                        this.doubleJumpAvailable = false;
-                        this.player.body.velocity.y = 0;
-                    }
-                }
-                // Backup snap check
-                else if (!this.onPlatform && this.player.body.velocity.y >= 0) {
-                    const verticalDistance = platformTop - playerBottom;
-                    if (verticalDistance > 0 && verticalDistance <= 20) {
-                        console.log('Backup snap triggered', {
-                            playerY: this.player.y,
-                            platformTop,
-                            verticalDistance,
-                            velocityY: this.player.body.velocity.y
-                        });
-
-                        // Perform the snap
-                        this.player.y = platformTop - this.player.body.height/2;
-                        this.player.body.velocity.y = 0;
-                        this.player.body.updateFromGameObject();
-                        
-                        // Update states
-                        this.onPlatform = true;
-                        this.jumping = false;
-                        this.doubleJumpAvailable = false;
-                        this.justSnapped = true;
-
-                        console.log('After snap', {
-                            playerY: this.player.y,
-                            velocityY: this.player.body.velocity.y,
-                            onPlatform: this.onPlatform
-                        });
-                    }
-                }
-            }
-        });
-
-        // Log current state
-        console.log('Frame update', {
-            playerY: this.player.y,
-            velocityY: this.player.body.velocity.y,
-            onPlatform: this.onPlatform,
-            jumping: this.jumping
-        });
-
-        // Move platforms
-        this.platforms.getChildren().forEach(platform => {
-            platform.setVelocityX(-this.platformSpeed);
-            if (platform.x < -100) {
+            if (platform.x < -platform.width) {
                 platform.destroy();
             }
         });
-
-        // Spawn new platform if needed
-        if (this.lastPlatformX < 900) {
-            this.spawnNextPlatform();
-        }
     }
 
     onPlayerLanding(player, platform) {
@@ -472,32 +420,31 @@ class GameScene extends Phaser.Scene {
     }
 
     loseLife() {
-        console.log('Losing life - Current lives:', this.lives);
-        this.gameOver = true;
         this.lives--;
-        console.log('Lives after decrement:', this.lives);
-        window.SHARED.lives = this.lives;
-        window.SHARED.resources = this.resources;
+        this.livesText.setText(`Lives: ${this.lives}`);
         
         if (this.lives <= 0) {
-            console.log('Game Over triggered - No lives left');
-            this.scene.start('GameOver', { 
+            console.log('Game Over: No lives remaining');
+            // Stop all game mechanics
+            this.gameOver = true;
+            if (this.player?.body) {
+                this.player.setVelocity(0, 0);
+                this.player.body.enable = false;
+            }
+            
+            // Show game over screen
+            this.scene.start('GameOverScene', {
                 score: this.score,
-                level: this.level,
-                resources: this.resources
+                level: this.level
             });
         } else {
-            console.log('Restarting scene - Lives remaining:', this.lives);
-            // Reset game state
-            this.score = 0;
-            this.platformsLanded = 0;
-            this.level = 1;
-            this.platformSpeed = this.BASE_PLATFORM_SPEED;
-            // Clear all platforms and collectibles
-            this.platforms.clear(true, true);
-            this.collectibles.clear(true, true);
-            // Restart the scene
-            this.scene.restart();
+            // Reset player position and state
+            this.player.setPosition(this.PLAYER_X, 100);
+            this.player.setVelocity(0, 0);
+            this.jumping = false;
+            this.onPlatform = false;
+            this.doubleJumpAvailable = false;
+            this.justSnapped = false;
         }
     }
 
