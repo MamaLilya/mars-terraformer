@@ -38,7 +38,7 @@ class GameScene extends Phaser.Scene {
         this.BASE_PLATFORM_SPEED = 1.5 * 60;
         this.platformSpeed = this.BASE_PLATFORM_SPEED;
         
-        // Jump state - initialize all flags
+        // Initialize jump state flags
         this.jumping = false;
         this.onPlatform = false;
         this.doubleJumpAvailable = false;
@@ -193,61 +193,18 @@ class GameScene extends Phaser.Scene {
             this.handleJump();
         }
 
-        // Reset platform state at start of frame
-        this.onPlatform = false;
+        // Update platform state based on physics
+        this.onPlatform = this.player.body.blocked.down || this.player.body.touching.down;
 
-        // Check each platform
-        this.platforms.getChildren().forEach(platform => {
-            // Get collision bounds
-            const playerBottom = this.player.body.bottom;
-            const platformTop = platform.body.top;
-            const playerLeft = this.player.body.left;
-            const playerRight = this.player.body.right;
-            const platformLeft = platform.body.left;
-            const platformRight = platform.body.right;
-
-            // Check horizontal overlap
-            const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
-            
-            if (horizontalOverlap) {
-                // Normal landing check
-                if (this.player.body.touching.down && this.player.body.blocked.down) {
-                    const verticalDistance = platformTop - playerBottom;
-                    if (verticalDistance >= -10 && verticalDistance <= 10) {
-                        console.log('Normal landing detected', {
-                            playerY: this.player.y,
-                            platformTop,
-                            verticalDistance
-                        });
-                        this.onPlatform = true;
-                        this.jumping = false;
-                        this.doubleJumpAvailable = true;  // Enable double jump on landing
-                        this.player.body.velocity.y = 0;
-                    }
-                }
-                // Backup snap check
-                else if (!this.onPlatform && this.player.body.velocity.y >= 0) {
-                    const verticalDistance = platformTop - playerBottom;
-                    if (verticalDistance > 0 && verticalDistance <= 15) {  // Reduced snap distance
-                        console.log('Backup snap triggered', {
-                            playerY: this.player.y,
-                            platformTop,
-                            verticalDistance,
-                            velocityY: this.player.body.velocity.y
-                        });
-
-                        // Perform the snap
-                        this.player.y = platformTop - this.player.body.height/2;
-                        this.player.body.velocity.y = 0;
-                        this.player.body.updateFromGameObject();
-                        
-                        // Update states
-                        this.onPlatform = true;
-                        this.jumping = false;
-                        this.doubleJumpAvailable = true;  // Enable double jump on snap
-                    }
-                }
-            }
+        // Debug log player state
+        console.log('Player state:', {
+            y: this.player.y,
+            velocityY: this.player.body.velocity.y,
+            onPlatform: this.onPlatform,
+            jumping: this.jumping,
+            doubleJumpAvailable: this.doubleJumpAvailable,
+            blockedDown: this.player.body.blocked.down,
+            touchingDown: this.player.body.touching.down
         });
 
         // Update score based on height
@@ -281,15 +238,6 @@ class GameScene extends Phaser.Scene {
         // Move platforms
         this.platforms.getChildren().forEach(platform => {
             platform.setVelocityX(-this.platformSpeed);
-        });
-
-        // Debug logging
-        console.log('Update frame →', {
-            playerY: this.player.y,
-            velocityY: this.player.body.velocity.y,
-            onPlatform: this.onPlatform,
-            jumping: this.jumping,
-            doubleJumpAvailable: this.doubleJumpAvailable
         });
     }
 
@@ -331,8 +279,8 @@ class GameScene extends Phaser.Scene {
     spawnPlatform(x, y, width) {
         // Create platform with proper physics body
         const platform = this.platforms.create(x, y, null);
-        platform.setSize(width, 20);
-        platform.setOffset(0, -10);  // Center the hitbox vertically
+        platform.setSize(width, 40);  // Increased hitbox height
+        platform.setOffset(0, -20);   // Center the hitbox vertically
         platform.body.setImmovable(true);
         platform.body.allowGravity = false;
         
