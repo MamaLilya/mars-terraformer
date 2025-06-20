@@ -19,7 +19,9 @@ class GameScene extends Phaser.Scene {
         // Load game assets
         this.load.image('energy_icon', 'assets/energy_icon.png');
         this.load.image('ice_icon', 'assets/ice_icon.png');
-        this.load.image('ore_icon', 'assets/ore_icon.png');
+        this.load.image('iron', 'assets/resource_iron_orb.png');
+        this.load.image('ice', 'assets/ice_icon.png'); // Use ice_icon for ice collectibles too
+        this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png'); // New ice orb asset
         this.load.image('progress_bar', 'assets/progress_bar.png');
         this.load.image('rover', 'assets/rover.png');
         this.load.image('solar_panel', 'assets/solar_panel.png');
@@ -80,7 +82,7 @@ class GameScene extends Phaser.Scene {
         this.resources = this.physics.add.group();
         
         // Initialize resource type for collectibles BEFORE creating platforms
-        this.nextResourceType = 'rock'; // Start with rock
+        this.nextResourceType = 'iron'; // Start with iron
         
         // Create initial platforms
         this.generateFixedPlatformPattern();
@@ -142,11 +144,11 @@ class GameScene extends Phaser.Scene {
             .setDepth(10);
 
         // Add resource icons and display - all fixed on screen
-        this.add.image(16, 80, 'ore_icon').setScale(0.5).setScrollFactor(0).setDepth(10);
-        this.add.image(16, 110, 'ice_icon').setScale(0.5).setScrollFactor(0).setDepth(10);
+        this.add.image(16, 80, 'iron').setScale(0.05).setScrollFactor(0).setDepth(10); // Match collectible scale
+        this.add.image(16, 110, 'resource_ice_orb').setScale(0.05).setScrollFactor(0).setDepth(10); // Use ice orb asset for UI
         this.add.image(16, 140, 'energy_icon').setScale(0.5).setScrollFactor(0).setDepth(10);
         
-        this.oreText = this.add.text(50, 70, `Stone: ${window.SHARED.resources.stone}`, { fontSize: '20px', fill: '#fff' })
+        this.ironText = this.add.text(50, 70, `Iron: ${window.SHARED.resources.stone}`, { fontSize: '20px', fill: '#fff' })
             .setScrollFactor(0)
             .setDepth(10);
         this.iceText = this.add.text(50, 100, `Ice: ${window.SHARED.resources.ice}`, { fontSize: '20px', fill: '#fff' })
@@ -196,11 +198,6 @@ class GameScene extends Phaser.Scene {
         // Set up the physics body
         this.physics.add.existing(platform, true); // `true` for a static body
         platform.body.allowGravity = false;
-        
-        // Debug logging for the first few platforms
-        if (this.platforms.getChildren().length <= 3) {
-            console.log(`[DEBUG] Platform created at (${x}, ${y}) with size: 200x20`);
-        }
         
         return platform;
     }
@@ -252,10 +249,6 @@ class GameScene extends Phaser.Scene {
             this.lastPlatformY = 450;
             this.lastPlacedX = 250;
             this.lastPlacedY = 450;
-            
-            console.log('[DEBUG] Starting platform created at (250, 450) with reference positions updated');
-            console.log('[DEBUG] Platform display size:', startPlatform.displayWidth, 'x', startPlatform.displayHeight);
-            console.log('[DEBUG] Platform body size:', startPlatform.body.width, 'x', startPlatform.body.height);
             
             return startPlatform;
         }
@@ -575,21 +568,6 @@ class GameScene extends Phaser.Scene {
     update() {
         if (this.gameOver) return;
 
-        // Debug: Log player position and collision status every 60 frames (1 second)
-        if (this.time.now % 60 === 0) {
-            console.log(`[DEBUG] Player at (${Math.round(this.player.x)}, ${Math.round(this.player.y)}), velocity: (${Math.round(this.player.body.velocity.x)}, ${Math.round(this.player.body.velocity.y)})`);
-            console.log(`[DEBUG] Player onPlatform: ${this.player.getData('onPlatform')}, touching down: ${this.player.body.touching.down}`);
-            console.log(`[DEBUG] Player body bounds: (${this.player.body.x}, ${this.player.body.y}) ${this.player.body.width}x${this.player.body.height}`);
-            
-            // Check if player should be colliding with platforms
-            const platforms = this.platforms.getChildren();
-            platforms.forEach((platform, index) => {
-                const playerBottom = this.player.body.y + this.player.body.height;
-                const platformTop = platform.body.y;
-                console.log(`[DEBUG] Platform ${index}: player bottom=${playerBottom}, platform top=${platformTop}, overlap=${playerBottom >= platformTop && playerBottom <= platformTop + platform.body.height}`);
-            });
-        }
-
         // Handle input
         if (this.cursors.left.isDown) {
             this.player.setVelocityX(-160);
@@ -637,7 +615,7 @@ class GameScene extends Phaser.Scene {
         }
 
         // Update resource displays to stay current
-        this.oreText.setText(`Stone: ${window.SHARED.resources.stone}`);
+        this.ironText.setText(`Iron: ${window.SHARED.resources.stone}`);
         this.iceText.setText(`Ice: ${window.SHARED.resources.ice}`);
         this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
         this.terraformingText.setText(`Terraforming: ${window.SHARED.terraforming || 0}%`);
@@ -755,7 +733,7 @@ class GameScene extends Phaser.Scene {
         window.SHARED.terraforming += Math.min(1, 100 - window.SHARED.terraforming);
     
         // Update resource display
-        this.oreText.setText(`Stone: ${window.SHARED.resources.stone}`);
+        this.ironText.setText(`Iron: ${window.SHARED.resources.stone}`);
         this.iceText.setText(`Ice: ${window.SHARED.resources.ice}`);
         this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
         this.terraformingText.setText(`Terraforming: ${window.SHARED.terraforming}%`);
@@ -773,12 +751,8 @@ class GameScene extends Phaser.Scene {
     }
 
     handlePlatformCollision(player, platform) {
-        console.log('[DEBUG] Platform collision detected! Player at:', player.x, player.y, 'Platform at:', platform.x, platform.y);
-        
         // Check if player is landing on platform (moving downward)
         if (player.body.velocity.y > 0) {
-            console.log('[DEBUG] Player landing on platform - setting onPlatform to true');
-            
             // Reset all jump flags consistently
             player.setData('onPlatform', true);
             player.setData('jumping', false);
@@ -794,42 +768,43 @@ class GameScene extends Phaser.Scene {
     }
 
     addResourceToPlatform(platform) {
-        // Position the collectible slightly above the platform (y - 20)
-        const resourceX = platform.x;
-        const resourceY = platform.y - 20;
-        
-        // Safety check: ensure nextResourceType is initialized
-        if (!this.nextResourceType) {
-            console.warn('[WARNING] nextResourceType is undefined, defaulting to rock');
-            this.nextResourceType = 'rock';
-        }
-        
-        // Create the resource sprite based on current type
+        // Always add a resource to every platform (100% chance)
+        const resourceXOffset = platform.width / 4;
+        const resourceX = platform.x + randInt(-resourceXOffset, resourceXOffset);
+        const resourceY = platform.y - 30; // 30px above the platform
+        const resourceType = this.nextResourceType;
+
         let resource;
-        if (this.nextResourceType === 'rock') {
-            resource = this.resources.create(resourceX, resourceY, 'ore_icon');
-            resource.setScale(0.8); // Slightly smaller than UI icon
-        } else if (this.nextResourceType === 'ice') {
-            resource = this.resources.create(resourceX, resourceY, 'ice_icon');
-            resource.setScale(0.8); // Slightly smaller than UI icon
+        if (resourceType === 'ice') {
+            // Use the new ice orb asset with same scaling as iron
+            resource = this.resources.create(resourceX, resourceY, 'resource_ice_orb');
+            resource.setScale(0.08); // Same scale as iron orbs
+            resource.body.setSize(resource.width * 0.08, resource.height * 0.08); // Match physics body to new size
+            console.log('[DEBUG] Ice resource created at', resourceX, resourceY);
         } else {
-            console.warn(`[WARNING] Unknown resource type: ${this.nextResourceType}, defaulting to rock`);
-            resource = this.resources.create(resourceX, resourceY, 'ore_icon');
-            resource.setScale(0.8);
-            this.nextResourceType = 'rock';
+            // Handle iron and other resources with scaling
+            resource = this.resources.create(resourceX, resourceY, resourceType);
+            
+            // Specific handling for different resources - scaling and physics body
+            if (resourceType === 'iron') {
+                resource.setScale(0.08); // Reduced from 0.15 to make iron orbs smaller
+                resource.body.setSize(resource.width * 0.08, resource.height * 0.08); // Match physics body to new size
+            } else {
+                // Assuming other resources are sized correctly
+                resource.body.setSize(resource.width, resource.height);
+            }
         }
-        
-        // Set physics properties
+
+        resource.setData('type', resourceType);
+
+        // Make resources static so they don't fall
         resource.setImmovable(true);
         resource.body.allowGravity = false;
         
-        // Store resource type for collection
-        resource.setData('type', this.nextResourceType);
-        
-        // Toggle to next resource type for next platform
-        this.nextResourceType = this.nextResourceType === 'rock' ? 'ice' : 'rock';
-        
-        console.log(`[DEBUG] Added ${resource.getData('type')} resource at (${resourceX}, ${resourceY})`);
+        console.log(`[DEBUG] Added ${resourceType} resource at (${resourceX}, ${resourceY})`);
+
+        // Alternate between resource types for next platform
+        this.nextResourceType = this.nextResourceType === 'iron' ? 'ice' : 'iron';
     }
 
     collectResource(player, resource) {
@@ -843,9 +818,9 @@ class GameScene extends Phaser.Scene {
         this.scoreText.setText(`Score: ${this.score}`);
         
         // Update shared resources based on type
-        if (resourceType === 'rock') {
+        if (resourceType === 'iron') {
             window.SHARED.resources.stone += 1;
-            this.oreText.setText(`Stone: ${window.SHARED.resources.stone}`);
+            this.ironText.setText(`Iron: ${window.SHARED.resources.stone}`);
         } else if (resourceType === 'ice') {
             window.SHARED.resources.ice += 1;
             this.iceText.setText(`Ice: ${window.SHARED.resources.ice}`);

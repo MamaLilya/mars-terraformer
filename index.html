@@ -11,15 +11,19 @@
 <body>
     <div id="game-container"></div>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.js"></script>
-    <script src="MainMenu.js"></script>
-    <script src="WorldMap.js"></script>
-    <script src="Station.js"></script>
-    <script src="GameScene.js"></script>
-    <script src="GameOver.js"></script>
-    <script src="Shop.js"></script>
-    <script src="Ranking.js"></script>
-    <script src="Settings.js"></script>
-    <script src="LifeLost.js"></script>
-    <script src="main.js"></script>
+    <script>
+        // Cache-busting query string
+        const version = new Date().getTime();
+        const scripts = [
+            'MainMenu.js', 'WorldMap.js', 'Station.js', 'GameScene.js',
+            'GameOver.js', 'Shop.js', 'Ranking.js', 'Settings.js',
+            'LifeLost.js', 'main.js'
+        ];
+        scripts.forEach(script => {
+            const scriptTag = document.createElement('script');
+            scriptTag.src = `${script}?v=${version}`;
+            document.body.appendChild(scriptTag);
+        });
+    </script>
 </body>
 </html>
