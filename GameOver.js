@@ -6,14 +6,47 @@ class GameOver extends Phaser.Scene {
         this.score = data.score || 0;
     }
     create() {
-        this.add.text(400, 120, 'Game Over', { fontSize: 48, color: '#ff4444' }).setOrigin(0.5);
-        this.add.text(400, 200, `Score: ${this.score}`, { fontSize: 32, color: '#fff' }).setOrigin(0.5);
-        this.add.text(400, 250, `Resources: Stone ${window.SHARED.resources.stone}  Ice ${window.SHARED.resources.ice}  Energy ${window.SHARED.resources.energy}`, { fontSize: 22, color: '#fff' }).setOrigin(0.5);
-        const tryAgainBtn = this.add.text(400, 340, 'Try Again', { fontSize: 28, color: '#ff0', backgroundColor: '#333' }).setOrigin(0.5).setInteractive();
-        const stationBtn = this.add.text(400, 400, 'Back to Station', { fontSize: 24, color: '#0f0', backgroundColor: '#333' }).setOrigin(0.5).setInteractive();
-        const menuBtn = this.add.text(400, 450, 'Back to Main Menu', { fontSize: 24, color: '#fff', backgroundColor: '#333' }).setOrigin(0.5).setInteractive();
-        tryAgainBtn.on('pointerup', () => this.scene.start('GameScene'));
-        stationBtn.on('pointerup', () => this.scene.start('Station'));
-        menuBtn.on('pointerup', () => this.scene.start('MainMenu'));
-    }
-} 
+        this.add.image(400, 300, 'gameover_screen').setOrigin(0.5).setScale(0.75);
+    
+        const lives = window.SHARED.lives;
+        const timerText = this.add.text(400, 520, '', { fontSize: 26, color: '#fff' }).setOrigin(0.5);
+    
+        if (lives <= 0) {
+            const last = parseInt(localStorage.getItem('lastLifeLostAt') || "0");
+            const now = Date.now();
+            const delta = 20 * 60 * 1000; // 20 минут
+            const remaining = delta - (now - last);
+    
+            if (remaining > 0) {
+                this.timeLeft = remaining;
+                this.timerEvent = this.time.addEvent({
+                    delay: 1000,
+                    loop: true,
+                    callback: () => {
+                        this.timeLeft -= 1000;
+                        const min = Math.floor(this.timeLeft / 60000);
+                        const sec = Math.floor((this.timeLeft % 60000) / 1000);
+                        timerText.setText(`⏳ ${min}:${sec.toString().padStart(2, '0')}`);
+    
+                        if (this.timeLeft <= 0) {
+                            window.SHARED.lives = 1;
+                            localStorage.removeItem('lastLifeLostAt');
+                            this.scene.start('Station');
+                        }
+                    }
+                });
+            } else {
+                window.SHARED.lives = 1;
+                localStorage.removeItem('lastLifeLostAt');
+                this.scene.start('Station');
+            }
+        } else {
+            this.add.text(400, 520, 'Нажми, чтобы попробовать снова', {
+                fontSize: 24,
+                color: '#fff',
+                backgroundColor: '#333'
+            }).setOrigin(0.5);
+            this.input.once('pointerdown', () => this.scene.start('GameScene'));
+        }
+    }    
+}
