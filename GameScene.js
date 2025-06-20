@@ -28,7 +28,6 @@ class GameScene extends Phaser.Scene {
         this.load.image('gameover_screen', 'assets/gameover_screen.png');
         this.load.image('life_lost_screen', 'assets/life_lost_screen.png');
         this.load.image('game_bg', 'assets/game_bg.png');
-        this.load.image('platform', 'assets/platform_mars.png');
 
         // Create simple graphics for player
         const playerGraphics = this.add.graphics();
@@ -37,21 +36,7 @@ class GameScene extends Phaser.Scene {
         playerGraphics.generateTexture('player', 40, 60);
         playerGraphics.destroy();
         
-        // Debug: Check platform image dimensions when loaded
-        this.load.on('complete', () => {
-            const platformTexture = this.textures.get('platform');
-            if (platformTexture) {
-                const frame = platformTexture.getSourceImage();
-                console.log('[DEBUG] Platform image dimensions:', frame.width, 'x', frame.height);
-                console.log('[DEBUG] Platform scaled dimensions:', frame.width * 0.8, 'x', frame.height * 0.8);
-                
-                // Store the actual dimensions for use in platform creation
-                this.platformImageWidth = frame.width;
-                this.platformImageHeight = frame.height;
-            } else {
-                console.error('[ERROR] Platform texture not found!');
-            }
-        });
+        console.log('[DEBUG] Simple player texture created (40x60)');
     }
 
     create() {
@@ -97,42 +82,16 @@ class GameScene extends Phaser.Scene {
         // Initialize resource type for collectibles BEFORE creating platforms
         this.nextResourceType = 'rock'; // Start with rock
         
-        // Restore the first starting platform manually
-        const startPlatform = this.platforms.create(250, 450, 'platform');
-        startPlatform.setImmovable(true);
-        startPlatform.body.allowGravity = false;
-        startPlatform.setScale(0.25).refreshBody();
-        
-        // Calculate the actual visual size of the scaled platform
-        const startScaledWidth = startPlatform.width * 0.25;
-        const startScaledHeight = startPlatform.height * 0.25;
-        startPlatform.body.setSize(startScaledWidth, startScaledHeight);
-        
-        this.addResourceToPlatform(startPlatform);
-
-        // Update reference positions for generator
-        this.lastPlatformX = 250 + startPlatform.displayWidth;
-        this.lastPlatformY = 450;
-        this.lastPlacedX = 250;
-        this.lastPlacedY = 450;
-        
-        console.log('[DEBUG] Starting platform created at (250, 450) with reference positions updated');
-        
-        // Fixed platform Y-levels
-        this.PLATFORM_Y_TOP = 250;
-        this.PLATFORM_Y_MID = 350;
-        this.PLATFORM_Y_BOTTOM = 450;
-
-        // Platform generation constraints - strict spacing rules
-        const MIN_HORIZONTAL_GAP = 80;  // Minimum gap (greater than player width)
-        const MAX_HORIZONTAL_GAP = 250; // Maximum gap (less than max double jump)
-        const Y_LEVELS = [250, 350, 450]; // Fixed Y levels to choose from
-        const SKIP_CHANCE = 60; // Reduced skip chance to 60% for more platforms
-        const MAX_PLATFORMS_PER_PATTERN = 2; // Reduced to 2-3 platforms per pattern
-        const PLATFORM_WIDTH = this.getPlatformWidth(); // Use actual scaled platform width
-
         // Create initial platforms
         this.generateFixedPlatformPattern();
+        
+        // Create a second platform closer to the first one for better gameplay
+        const secondPlatformX = 250 + 200 + 120; // Right edge of first platform (200px wide) + gap
+        const secondPlatformY = 350; // Different Y level for variety
+        const secondPlatform = this.createPlatform(secondPlatformX, secondPlatformY);
+        this.addResourceToPlatform(secondPlatform);
+        
+        console.log(`[DEBUG] Created second platform at (${secondPlatformX}, ${secondPlatformY}) for better gameplay`);
         
         // 🎨 Просто рисуем "лаву" как декорацию
         this.lava = this.add.rectangle(0, 580, 4000, 40, 0xff0000, 0.5);
@@ -140,14 +99,36 @@ class GameScene extends Phaser.Scene {
 
     
         this.player = this.physics.add.sprite(this.startX, this.startY, 'player');
-        this.player.setPosition(250, 410); // Y is above the platform at (250, 450)
         this.player.setBounce(0.1);
         this.player.setCollideWorldBounds(true);
         this.player.setGravityY(800);
 
+        // Ensure player collision box is properly set up
+        this.player.body.setSize(40, 60);
+        this.player.body.setOffset(0, 0);
+
+        console.log('[DEBUG] Player created at position (250, 430)');
+        console.log('[DEBUG] Player body size:', this.player.body.width, 'x', this.player.body.height);
+        console.log('[DEBUG] Player body offset:', this.player.body.offset.x, 'x', this.player.body.offset.y);
+
         this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     
+        // Ensure physics collider is set up after both player and platforms are created
         this.physics.add.collider(this.player, this.platforms, this.handlePlatformCollision, null, this);
+        
+        console.log('[DEBUG] Physics collider set up between player and platforms');
+        console.log('[DEBUG] Total platforms in group:', this.platforms.getChildren().length);
+        
+        // Position player exactly on top of the starting platform AFTER collider setup
+        // Platform is at (250, 450) with height 30, so platform top is at Y=450
+        // Player height is 60, so player bottom should be at Y=450, meaning player Y should be 450-60=390
+        this.player.setPosition(250, 390); // Player bottom at Y=450 (platform top)
+        console.log('[DEBUG] Player positioned at (250, 390) after collider setup');
+        
+        // Debug: Show platform collision boxes
+        this.platforms.getChildren().forEach((platform, index) => {
+            console.log(`[DEBUG] Platform ${index} collision box: (${platform.x}, ${platform.y}) ${platform.body.width}x${platform.body.height}`);
+        });
         
         // Add overlap detection for resource collection
         this.physics.add.overlap(this.player, this.resources, this.collectResource, null, this);
@@ -208,52 +189,26 @@ class GameScene extends Phaser.Scene {
     
     // Helper method to create platforms with proper collision boxes
     createPlatform(x, y) {
-        const platform = this.platforms.create(x, y, 'platform');
-        platform.setImmovable(true);
+        // Create a visible platform using graphics instead of a texture
+        const platform = this.add.rectangle(x, y, 200, 20, 0x8B4513); // Brown rectangle
+        this.platforms.add(platform); // Add to the physics group
+        
+        // Set up the physics body
+        this.physics.add.existing(platform, true); // `true` for a static body
         platform.body.allowGravity = false;
         
-        // Use more reasonable scaling since the platform image is 1024x1024
-        platform.setScale(0.25).refreshBody();
-        
-        // Calculate the actual visual size of the scaled platform
-        const scaledWidth = platform.width * 0.25;
-        const scaledHeight = platform.height * 0.25;
-        
-        // Set collision box to match the actual visual size
-        platform.body.setSize(scaledWidth, scaledHeight);
-        platform.body.setOffset(0, 0);
-        
-        // Debug logging for first few platforms
+        // Debug logging for the first few platforms
         if (this.platforms.getChildren().length <= 3) {
-            console.log(`[DEBUG] Platform created at (${x}, ${y}) with visual size: ${scaledWidth}x${scaledHeight}, collision box: ${scaledWidth}x${scaledHeight}`);
+            console.log(`[DEBUG] Platform created at (${x}, ${y}) with size: 200x20`);
         }
         
-        return platform;
-    }
-    
-    // Fallback method to create basic platforms if image-based ones fail
-    createBasicPlatform(x, y) {
-        const platform = this.platforms.create(x, y, 'platform');
-        platform.setImmovable(true);
-        platform.body.allowGravity = false;
-        platform.setScale(0.8).refreshBody();
-        
-        // Use the original collision box approach
-        platform.body.setSize(platform.width * 0.8, platform.height * 0.8);
-        
-        console.log(`[FALLBACK] Basic platform created at (${x}, ${y})`);
         return platform;
     }
     
     // Helper method to get the actual platform width for spacing calculations
     getPlatformWidth() {
-        // Use the actual scaled width of the platform image
-        const platformTexture = this.textures.get('platform');
-        if (platformTexture) {
-            const frame = platformTexture.getSourceImage();
-            return frame.width * 0.25; // Scaled width (more reasonable now)
-        }
-        return 250; // Fallback to a reasonable width if texture not available
+        // Platforms are 200 pixels wide
+        return 200;
     }
     
     generateFixedPlatformPattern() {
@@ -262,6 +217,11 @@ class GameScene extends Phaser.Scene {
         this.patternIndex = 0;
         this.currentPattern = Phaser.Utils.Array.GetRandom(PLATFORM_PATTERNS);
         this.currentYIndex = 0;
+        
+        // Fixed platform Y-levels
+        this.PLATFORM_Y_TOP = 250;
+        this.PLATFORM_Y_MID = 350;
+        this.PLATFORM_Y_BOTTOM = 450;
         
         // Platform generation constraints - strict spacing rules
         const MIN_HORIZONTAL_GAP = 80;  // Minimum gap (greater than player width)
@@ -287,7 +247,16 @@ class GameScene extends Phaser.Scene {
             // Add collectible resource on the platform
             this.addResourceToPlatform(startPlatform);
             
-            console.log('[DEBUG] Placed initial platform at (250, 450)');
+            // Update reference positions for generator
+            this.lastPlatformX = 250 + PLATFORM_WIDTH; // Right edge of platform
+            this.lastPlatformY = 450;
+            this.lastPlacedX = 250;
+            this.lastPlacedY = 450;
+            
+            console.log('[DEBUG] Starting platform created at (250, 450) with reference positions updated');
+            console.log('[DEBUG] Platform display size:', startPlatform.displayWidth, 'x', startPlatform.displayHeight);
+            console.log('[DEBUG] Platform body size:', startPlatform.body.width, 'x', startPlatform.body.height);
+            
             return startPlatform;
         }
         
@@ -604,8 +573,34 @@ class GameScene extends Phaser.Scene {
     }
 
     update() {
+        if (this.gameOver) return;
+
+        // Debug: Log player position and collision status every 60 frames (1 second)
+        if (this.time.now % 60 === 0) {
+            console.log(`[DEBUG] Player at (${Math.round(this.player.x)}, ${Math.round(this.player.y)}), velocity: (${Math.round(this.player.body.velocity.x)}, ${Math.round(this.player.body.velocity.y)})`);
+            console.log(`[DEBUG] Player onPlatform: ${this.player.getData('onPlatform')}, touching down: ${this.player.body.touching.down}`);
+            console.log(`[DEBUG] Player body bounds: (${this.player.body.x}, ${this.player.body.y}) ${this.player.body.width}x${this.player.body.height}`);
+            
+            // Check if player should be colliding with platforms
+            const platforms = this.platforms.getChildren();
+            platforms.forEach((platform, index) => {
+                const playerBottom = this.player.body.y + this.player.body.height;
+                const platformTop = platform.body.y;
+                console.log(`[DEBUG] Platform ${index}: player bottom=${playerBottom}, platform top=${platformTop}, overlap=${playerBottom >= platformTop && playerBottom <= platformTop + platform.body.height}`);
+            });
+        }
+
+        // Handle input
+        if (this.cursors.left.isDown) {
+            this.player.setVelocityX(-160);
+        } else if (this.cursors.right.isDown) {
+            this.player.setVelocityX(160);
+        } else {
+            this.player.setVelocityX(0);
+        }
+
         // Check if game is over or player doesn't exist
-        if (this.gameOver || !this.player || !this.player.body) return;
+        if (!this.player || !this.player.body) return;
     
         // Update onPlatform based on physics state
         const isOnGround = this.player.body.touching.down || this.player.body.blocked.down;
