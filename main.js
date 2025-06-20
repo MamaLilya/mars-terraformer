@@ -15,7 +15,7 @@ const config = {
         mode: Phaser.Scale.ENVELOP,
         autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [MainMenu, WorldMap, Station, GameScene, GameOver, Shop, Ranking, Settings, LifeLost],
+    scene: [MainMenu, WorldMap, Station, GameScene, LevelComplete, GameOver, Shop, Ranking, Settings, LifeLost],
     physics: {
         default: 'arcade',
         arcade: { gravity: { y: 1000 }, debug: false },

@@ -22,6 +22,7 @@ class GameScene extends Phaser.Scene {
         this.load.image('iron', 'assets/resource_iron_orb.png');
         this.load.image('ice', 'assets/ice_icon.png'); // Use ice_icon for ice collectibles too
         this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png'); // New ice orb asset
+        this.load.image('resource_solar_orb', 'assets/resource_solar_orb.png'); // Solar energy resource
         this.load.image('progress_bar', 'assets/progress_bar.png');
         this.load.image('rover', 'assets/rover.png');
         this.load.image('solar_panel', 'assets/solar_panel.png');
@@ -72,6 +73,18 @@ class GameScene extends Phaser.Scene {
         this.lives = window.SHARED.lives;
         this.gameOver = false;
         this.hasTouchedLava = false;
+        this.levelCompleted = false;
+        this.platformsPlaced = 0;
+        this.levelEndPlatformCreated = false;
+        this.levelEndPlatform = null;
+        this.levelEndText = null;
+    
+        // Track initial resources for level completion calculation
+        this.initialResources = {
+            stone: window.SHARED.resources.stone,
+            ice: window.SHARED.resources.ice,
+            energy: window.SHARED.resources.energy
+        };
     
         this.autoSpeed = 150 + (window.SHARED.level - 1) * 20;
     
@@ -181,7 +194,9 @@ class GameScene extends Phaser.Scene {
         this.spaceWasDown = false;
         
         this.physics.add.overlap(this.player, this.lava, () => {
-            this.loseLife();
+            if (!this.levelCompleted) {
+                this.loseLife();
+            }
         }, null, this);        
     
         this.player.setData('onPlatform', true);
@@ -199,6 +214,9 @@ class GameScene extends Phaser.Scene {
         this.physics.add.existing(platform, true); // `true` for a static body
         platform.body.allowGravity = false;
         
+        // Increment platform counter for level completion tracking
+        this.platformsPlaced++;
+        
         return platform;
     }
     
@@ -209,28 +227,9 @@ class GameScene extends Phaser.Scene {
     }
     
     generateFixedPlatformPattern() {
-        // Fix platform generation tracking variables - reset all counters
-        this.platformsInCurrentPattern = 0;
-        this.patternIndex = 0;
-        this.currentPattern = Phaser.Utils.Array.GetRandom(PLATFORM_PATTERNS);
-        this.currentYIndex = 0;
-        
-        // Fixed platform Y-levels
-        this.PLATFORM_Y_TOP = 250;
-        this.PLATFORM_Y_MID = 350;
-        this.PLATFORM_Y_BOTTOM = 450;
-        
-        // Platform generation constraints - strict spacing rules
-        const MIN_HORIZONTAL_GAP = 80;  // Minimum gap (greater than player width)
-        const MAX_HORIZONTAL_GAP = 250; // Maximum gap (less than max double jump)
-        const Y_LEVELS = [250, 350, 450]; // Fixed Y levels to choose from
-        const SKIP_CHANCE = 60; // Reduced skip chance to 60% for more platforms
-        const MAX_PLATFORMS_PER_PATTERN = 2; // Reduced to 2-3 platforms per pattern
-        const PLATFORM_WIDTH = this.getPlatformWidth(); // Use actual scaled platform width
-        
-        // Safety check: ensure platforms group exists and has getChildren method
+        // Safety check: ensure platforms group exists
         if (!this.platforms?.getChildren) {
-            console.warn('[WARNING] Platforms group not properly initialized in generateFixedPlatformPattern');
+            console.warn('[WARNING] Platforms group not properly initialized');
             return null;
         }
         
@@ -240,312 +239,84 @@ class GameScene extends Phaser.Scene {
         // Create initial starting platform if none exists
         if (platformCount === 0) {
             const startPlatform = this.createPlatform(250, 450);
-            
-            // Add collectible resource on the platform
             this.addResourceToPlatform(startPlatform);
-            
-            // Update reference positions for generator
-            this.lastPlatformX = 250 + PLATFORM_WIDTH; // Right edge of platform
-            this.lastPlatformY = 450;
-            this.lastPlacedX = 250;
-            this.lastPlacedY = 450;
-            
             return startPlatform;
         }
         
-        // RESET LOGIC: Initialize or reset tracking variables
-        if (!this.lastPlacedX || !this.lastPlacedY || !this.currentPattern || !this.currentYIndex || platformCount === 1) {
-            this.lastPlacedX = 250;
-            this.lastPlacedY = 450;
-            this.currentPattern = Phaser.Utils.Array.GetRandom(PLATFORM_PATTERNS);
-            this.currentYIndex = 0; // Reset Y pattern index
-            this.patternIndex = 0;
-            this.platformsInCurrentPattern = 0;
-            this.lastPlatformX = 250;
-            this.lastPlatformY = 450;
-            console.log(`[DEBUG] Selected pattern: [${this.currentPattern.join(', ')}]`);
-        }
-        
-        // ENFORCE STRICTLY INCREASING X: Get the rightmost platform X position
+        // Get the rightmost platform
         const rightmostPlatform = this.getRightmostPlatform();
-        if (rightmostPlatform) {
-            this.lastPlatformX = rightmostPlatform.x + PLATFORM_WIDTH; // Right edge of rightmost platform
-            console.log(`[DEBUG] Rightmost platform at X: ${rightmostPlatform.x}, lastPlatformX updated to: ${this.lastPlatformX}`);
-        } else {
-            console.warn('[WARNING] No rightmost platform found, using default lastPlatformX');
-            this.lastPlatformX = 250 + PLATFORM_WIDTH;
+        if (!rightmostPlatform) {
+            console.warn('[WARNING] No rightmost platform found');
+            return null;
         }
         
-        // Special logic for second platform placement
-        if (platformCount === 1) {
-            const children = this.platforms.getChildren();
-            if (!children || children.length === 0) {
-                console.warn('[WARNING] No platforms found when expecting 1 platform');
-                return null;
+        // Simple platform placement logic
+        const PLATFORM_WIDTH = 200;
+        const MIN_GAP = 120;
+        const MAX_GAP = 180;
+        const Y_LEVELS = [250, 350, 450];
+        
+        // Calculate new platform position
+        const gap = Phaser.Math.Between(MIN_GAP, MAX_GAP);
+        const newX = rightmostPlatform.x + gap;
+        
+        // Choose Y level - alternate between levels for variety
+        let newY;
+        if (platformCount % 3 === 0) {
+            newY = 250; // High level
+        } else if (platformCount % 3 === 1) {
+            newY = 350; // Mid level
+        } else {
+            newY = 450; // Low level
+        }
+        
+        // Check if the jump is reachable
+        const dx = Math.abs(newX - rightmostPlatform.x);
+        const dy = Math.abs(newY - rightmostPlatform.y);
+        
+        // Maximum jump distances (based on player capabilities)
+        const MAX_HORIZONTAL_JUMP = 200;
+        const MAX_VERTICAL_JUMP = 150;
+        
+        // If the jump is too difficult, adjust the Y position
+        if (dx > MAX_HORIZONTAL_JUMP || dy > MAX_VERTICAL_JUMP) {
+            console.log(`[DEBUG] Jump too difficult: dx=${dx}, dy=${dy}. Adjusting Y position.`);
+            
+            // Find a reachable Y position
+            let adjustedY = newY;
+            
+            // If jumping up too high, lower the target
+            if (newY < rightmostPlatform.y && dy > MAX_VERTICAL_JUMP) {
+                adjustedY = rightmostPlatform.y - Math.min(100, MAX_VERTICAL_JUMP);
+                console.log(`[DEBUG] Lowered target from ${newY} to ${adjustedY}`);
+            }
+            // If jumping down too far, raise the target
+            else if (newY > rightmostPlatform.y && dy > MAX_VERTICAL_JUMP) {
+                adjustedY = rightmostPlatform.y + Math.min(100, MAX_VERTICAL_JUMP);
+                console.log(`[DEBUG] Raised target from ${newY} to ${adjustedY}`);
             }
             
-            const initialPlatform = children[0]; // First platform at (250, 450)
-            
-            // Get target Y from pattern at current index, ensuring alternation
-            let targetY = this.currentPattern[this.currentYIndex];
-            
-            // ENFORCE Y-LEVEL ALTERNATION: Must be different from first platform
-            if (targetY === this.lastPlacedY) {
-                // Try next pattern index
-                const nextIndex = (this.currentYIndex + 1) % this.currentPattern.length;
-                targetY = this.currentPattern[nextIndex];
-                if (targetY === this.lastPlacedY) {
-                    // If still same, pick opposite level
-                    if (this.lastPlacedY === 450) targetY = 250;
-                    else if (this.lastPlacedY === 250) targetY = 450;
-                    else targetY = 450; // Default for 350
-                }
-            }
-            
-            // ENFORCE STRICTLY INCREASING X: Calculate X position with strict spacing rules
-            const desiredGap = Phaser.Math.Between(MIN_HORIZONTAL_GAP, MAX_HORIZONTAL_GAP);
-            const newX = this.lastPlatformX + desiredGap; // Use lastPlatformX (right edge) + gap
-            
-            // VALIDATE X INCREASE: Ensure new platform is strictly to the right
-            if (newX <= this.lastPlatformX) {
-                console.warn(`[WARNING] Platform would be placed backward! newX: ${newX} <= lastPlatformX: ${this.lastPlatformX}`);
-                // Force minimum gap to ensure forward placement
-                const forcedX = this.lastPlatformX + MIN_HORIZONTAL_GAP;
-                console.log(`[DEBUG] Forcing platform to X: ${forcedX} to maintain forward progression`);
-            }
-            
-            console.log(`[DEBUG] Placing platform at X: ${newX}, Y: ${targetY} (pattern index ${this.currentYIndex})`);
-            
-            // Try to place at calculated position first
-            if (this.isReachable(this.lastPlacedX, this.lastPlacedY, newX, targetY)) {
-                const platform = this.createPlatform(newX, targetY);
+            // If horizontal gap is too large, reduce it
+            if (dx > MAX_HORIZONTAL_JUMP) {
+                const adjustedX = rightmostPlatform.x + Math.min(180, MAX_HORIZONTAL_JUMP);
+                console.log(`[DEBUG] Reduced gap from ${dx} to ${adjustedX - rightmostPlatform.x}`);
                 
-                // Add collectible resource on the platform
+                console.log(`[DEBUG] Placing platform at (${adjustedX}, ${adjustedY}) - adjusted for reachability`);
+                const platform = this.createPlatform(adjustedX, adjustedY);
                 this.addResourceToPlatform(platform);
-                
-                this.lastPlatformX = newX + PLATFORM_WIDTH; // Update to right edge of new platform
-                this.lastPlatformY = targetY;
-                this.lastPlacedX = newX;
-                this.lastPlacedY = targetY;
-                this.currentYIndex = (this.currentYIndex + 1) % this.currentPattern.length; // Cycle pattern index
-                this.patternIndex++;
-                this.platformsInCurrentPattern++;
-                
-                console.log(`[DEBUG] Placed platform at (${newX}, ${targetY}), lastPlatformX updated to: ${this.lastPlatformX}`);
                 return platform;
             }
             
-            // Fallback: try different Y levels with same X, respecting alternation
-            const fallbackYLevels = Y_LEVELS.filter(level => level !== this.lastPlacedY);
-            for (const fallbackY of fallbackYLevels) {
-                if (this.isReachable(this.lastPlacedX, this.lastPlacedY, newX, fallbackY)) {
-                    const platform = this.createPlatform(newX, fallbackY);
-                    
-                    // Add collectible resource on the platform
-                    this.addResourceToPlatform(platform);
-                    
-                    this.lastPlatformX = newX + PLATFORM_WIDTH; // Update to right edge of new platform
-                    this.lastPlatformY = fallbackY;
-                    this.lastPlacedX = newX;
-                    this.lastPlacedY = fallbackY;
-                    this.currentYIndex = (this.currentYIndex + 1) % this.currentPattern.length; // Cycle pattern index
-                    this.patternIndex++;
-                    this.platformsInCurrentPattern++;
-                    
-                    console.log(`[DEBUG] Placed platform at (${newX}, ${fallbackY}), lastPlatformX updated to: ${this.lastPlatformX}`);
-                    return platform;
-                }
-            }
-            
-            // GUARANTEED FALLBACK: If no position is reachable, force place at minimum distance
-            const guaranteedX = this.lastPlatformX + MIN_HORIZONTAL_GAP;
-            const guaranteedY = this.currentPattern[this.currentYIndex]; // Use pattern Y
-            
-            // ENFORCE STRICTLY INCREASING X: Final validation
-            if (guaranteedX <= this.lastPlatformX) {
-                console.error(`[ERROR] Guaranteed fallback would place platform backward! X: ${guaranteedX} <= lastPlatformX: ${this.lastPlatformX}`);
-                // Force a minimum forward step
-                const forcedX = this.lastPlatformX + 100; // Force 100px forward
-                console.log(`[DEBUG] Forcing platform to X: ${forcedX} as emergency fallback`);
-            }
-            
-            const platform = this.createPlatform(guaranteedX, guaranteedY);
-            
-            // Add collectible resource on the platform
+            console.log(`[DEBUG] Placing platform at (${newX}, ${adjustedY}) - adjusted Y for reachability`);
+            const platform = this.createPlatform(newX, adjustedY);
             this.addResourceToPlatform(platform);
-            
-            this.lastPlatformX = guaranteedX + PLATFORM_WIDTH; // Update to right edge of new platform
-            this.lastPlatformY = guaranteedY;
-            this.lastPlacedX = guaranteedX;
-            this.lastPlacedY = guaranteedY;
-            this.currentYIndex = (this.currentYIndex + 1) % this.currentPattern.length; // Cycle pattern index
-            this.patternIndex++;
-            this.platformsInCurrentPattern++;
-            
-            console.log(`[DEBUG] Placed platform at (${guaranteedX}, ${guaranteedY}), lastPlatformX updated to: ${this.lastPlatformX}`);
             return platform;
         }
         
-        // If pattern complete or max platforms reached, select new pattern
-        if (this.patternIndex >= this.currentPattern.length || this.platformsInCurrentPattern >= MAX_PLATFORMS_PER_PATTERN) {
-            this.currentPattern = Phaser.Utils.Array.GetRandom(PLATFORM_PATTERNS);
-            this.currentYIndex = 0; // Reset Y pattern index
-            this.patternIndex = 0;
-            this.platformsInCurrentPattern = 0; // Reset pattern counter
-            
-            // Add extra spacing after each pattern
-            this.lastPlatformX += Phaser.Math.Between(50, 100);
-            console.log(`[DEBUG] New pattern selected: [${this.currentPattern.join(', ')}], lastPlatformX: ${this.lastPlatformX}, platformsInCurrentPattern reset to 0`);
-        }
-        
-        // Get current Y level from pattern at current index, ensuring alternation
-        let targetY = this.currentPattern[this.currentYIndex];
-        
-        // ENFORCE Y-LEVEL ALTERNATION: Must be different from last platform
-        if (targetY === this.lastPlatformY) {
-            // Try next pattern index
-            const nextIndex = (this.currentYIndex + 1) % this.currentPattern.length;
-            targetY = this.currentPattern[nextIndex];
-            if (targetY === this.lastPlatformY) {
-                // If still same, pick opposite level
-                if (this.lastPlatformY === 450) targetY = 250;
-                else if (this.lastPlatformY === 250) targetY = 450;
-                else targetY = 450; // Default for 350
-            }
-        }
-        
-        // ENFORCE STRICTLY INCREASING X: Calculate X position with strict spacing rules
-        let desiredGap = Phaser.Math.Between(MIN_HORIZONTAL_GAP, MAX_HORIZONTAL_GAP);
-        
-        // Introduce occasional large jumps every 3rd platform (less frequent now)
-        if (this.platformsInCurrentPattern > 0 && this.platformsInCurrentPattern % 2 === 0) {
-            const bonus = Phaser.Math.Between(40, 80); // Reduced bonus
-            desiredGap += bonus;
-        }
-        
-        // Ensure desired gap is within strict constraints
-        desiredGap = Phaser.Math.Clamp(desiredGap, MIN_HORIZONTAL_GAP, MAX_HORIZONTAL_GAP);
-        
-        // ENFORCE STRICTLY INCREASING X: Calculate new X position from right edge of last platform
-        const newX = this.lastPlatformX + desiredGap;
-        
-        // VALIDATE X INCREASE: Ensure new platform is strictly to the right
-        if (newX <= this.lastPlatformX) {
-            console.warn(`[WARNING] Platform would be placed backward! newX: ${newX} <= lastPlatformX: ${this.lastPlatformX}`);
-            // Force minimum gap to ensure forward placement
-            const forcedX = this.lastPlatformX + MIN_HORIZONTAL_GAP;
-            console.log(`[DEBUG] Forcing platform to X: ${forcedX} to maintain forward progression`);
-        }
-        
-        console.log(`[DEBUG] Placing platform at X: ${newX}, Y: ${targetY} (pattern index ${this.currentYIndex})`);
-        
-        // Check if we should skip this platform - reduced skip chance for more platforms
-        const shouldSkip = Phaser.Math.Between(0, 100) < SKIP_CHANCE;
-        if (shouldSkip) {
-            this.currentYIndex = (this.currentYIndex + 1) % this.currentPattern.length; // Still cycle pattern index
-            this.patternIndex++;
-            return null; // Do NOT place or adjust
-        }
-        
-        // PROGRESSIVE FALLBACK: Try positions with gradually smaller horizontal gaps
-        const fallbackAttempts = [
-            // Attempt 1: Original calculated position with pattern Y
-            { x: newX, y: targetY },
-            // Attempt 2: Same X, different Y levels (excluding current Y)
-            ...Y_LEVELS.filter(y => y !== this.lastPlatformY).map(y => ({ x: newX, y })),
-            // Attempt 3: Reduced gap positions with different Y levels
-            ...Y_LEVELS.filter(y => y !== this.lastPlatformY).map(y => ({ 
-                x: this.lastPlatformX + MIN_HORIZONTAL_GAP, 
-                y 
-            })),
-            // Attempt 4: Even smaller gap as last resort with different Y levels
-            ...Y_LEVELS.filter(y => y !== this.lastPlatformY).map(y => ({ 
-                x: this.lastPlatformX + 80, 
-                y 
-            }))
-        ];
-        
-        // Try each fallback attempt
-        for (const attempt of fallbackAttempts) {
-            // ENFORCE STRICTLY INCREASING X: Validate X position
-            if (attempt.x <= this.lastPlatformX) {
-                console.warn(`[WARNING] Fallback attempt would place platform backward! X: ${attempt.x} <= lastPlatformX: ${this.lastPlatformX}`);
-                continue; // Skip this attempt
-            }
-            
-            if (this.isReachable(this.lastPlacedX, this.lastPlacedY, attempt.x, attempt.y)) {
-                const platform = this.createPlatform(attempt.x, attempt.y);
-                
-                // Add collectible resource on the platform
-                this.addResourceToPlatform(platform);
-                
-                this.lastPlatformX = attempt.x + PLATFORM_WIDTH; // Update to right edge of new platform
-                this.lastPlatformY = attempt.y;
-                this.lastPlacedX = attempt.x;
-                this.lastPlacedY = attempt.y;
-                this.currentYIndex = (this.currentYIndex + 1) % this.currentPattern.length; // Cycle pattern index
-                this.patternIndex++;
-                this.platformsInCurrentPattern++;
-                
-                console.log(`[DEBUG] Placed platform at (${attempt.x}, ${attempt.y}), lastPlatformX updated to: ${this.lastPlatformX}`);
-                return platform;
-            }
-        }
-        
-        // GUARANTEED FALLBACK: If all attempts fail, force place at minimum distance
-        const guaranteedX = this.lastPlatformX + MIN_HORIZONTAL_GAP;
-        const guaranteedY = this.currentPattern[this.currentYIndex]; // Use pattern Y
-        
-        // ENFORCE STRICTLY INCREASING X: Final validation
-        if (guaranteedX <= this.lastPlatformX) {
-            console.error(`[ERROR] Guaranteed fallback would place platform backward! X: ${guaranteedX} <= lastPlatformX: ${this.lastPlatformX}`);
-            // Force a minimum forward step
-            const forcedX = this.lastPlatformX + 100; // Force 100px forward
-            console.log(`[DEBUG] Forcing platform to X: ${forcedX} as emergency fallback`);
-        }
-        
-        const platform = this.createPlatform(guaranteedX, guaranteedY);
-        
-        // Add collectible resource on the platform
+        console.log(`[DEBUG] Placing platform at (${newX}, ${newY})`);
+        const platform = this.createPlatform(newX, newY);
         this.addResourceToPlatform(platform);
-        
-        this.lastPlatformX = guaranteedX + PLATFORM_WIDTH; // Update to right edge of new platform
-        this.lastPlatformY = guaranteedY;
-        this.lastPlacedX = guaranteedX;
-        this.lastPlacedY = guaranteedY;
-        this.currentYIndex = (this.currentYIndex + 1) % this.currentPattern.length; // Cycle pattern index
-        this.patternIndex++;
-        this.platformsInCurrentPattern++;
-        
-        console.log(`[DEBUG] Placed platform at (${guaranteedX}, ${guaranteedY}), lastPlatformX updated to: ${this.lastPlatformX}`);
         return platform;
-    }
-
-    // Helper function to check if a platform is reachable from another platform
-    isReachable(fromX, fromY, toX, toY) {
-        const dx = Math.abs(toX - fromX);
-        const dy = Math.abs(toY - fromY);
-        
-        // Check if this is the second platform (from initial platform at 250, 450)
-        const isSecondPlatform = fromX === 250 && fromY === 450;
-        
-        // Maximum reachable distances (based on player jump capabilities)
-        let MAX_HORIZONTAL_REACH, MAX_VERTICAL_REACH;
-        
-        if (isSecondPlatform) {
-            // Stricter constraints for second platform
-            MAX_HORIZONTAL_REACH = 220; // Maximum horizontal jump distance for second platform
-            MAX_VERTICAL_REACH = 110;   // Maximum vertical jump distance for second platform
-        } else {
-            // Less strict constraints for normal platforms
-            MAX_HORIZONTAL_REACH = 140; // Increased from 120 for normal platforms
-            MAX_VERTICAL_REACH = 120;   // Increased from 100 for normal platforms
-        }
-        
-        // Check if the gap is within reachable limits
-        const isReachable = dx <= MAX_HORIZONTAL_REACH && dy <= MAX_VERTICAL_REACH;
-        
-        return isReachable;
     }
 
     getRightmostPlatform() {
@@ -567,6 +338,7 @@ class GameScene extends Phaser.Scene {
 
     update() {
         if (this.gameOver) return;
+        if (this.levelCompleted) return;
 
         // Handle input
         if (this.cursors.left.isDown) {
@@ -621,18 +393,17 @@ class GameScene extends Phaser.Scene {
         this.terraformingText.setText(`Terraforming: ${window.SHARED.terraforming || 0}%`);
 
         // Platform spawning logic - generate new platforms as player progresses
-        const rightmostPlatform = this.getRightmostPlatform();
-        if (rightmostPlatform && this.player.x > rightmostPlatform.x - 200) {
-            // Spawn new platform when player is getting close to the rightmost platform
-            const newPlatform = this.generateFixedPlatformPattern();
-            if (newPlatform) {
-                console.log('[DEBUG] New platform successfully placed at:', newPlatform.x, newPlatform.y);
-            } else {
-                console.warn('[WARNING] Failed to place new platform');
+        if (!this.levelCompleted) {
+            const rightmostPlatform = this.getRightmostPlatform();
+            if (rightmostPlatform && this.player.x > rightmostPlatform.x - 200) {
+                // Spawn new platform when player is getting close to the rightmost platform
+                const newPlatform = this.generateFixedPlatformPattern();
+                if (newPlatform) {
+                    console.log('[DEBUG] New platform successfully placed at:', newPlatform.x, newPlatform.y);
+                } else {
+                    console.warn('[WARNING] Failed to place new platform');
+                }
             }
-            
-            // Debug logging - show total platforms in scene
-            console.log('[DEBUG] Platforms in scene:', this.platforms.getChildren().length);
         }
 
         // Platform validation - ensure platforms are working correctly
@@ -670,15 +441,91 @@ class GameScene extends Phaser.Scene {
         }
     
         // Check if player fell below screen and trigger loseLife()
-        if (this.player.y >= 570 && !this.gameOver) {
+        if (this.player.y >= 570 && !this.gameOver && !this.levelCompleted) {
             this.loseLife();
         }
+
+        // Check for level completion
+        this.checkLevelCompletion();
     }
     
+    checkLevelCompletion() {
+        // Level is complete when player reaches the level end platform
+        // Create level end platform after a certain number of platforms (scales with level)
+        const targetPlatformCount = 20 + (window.SHARED.level - 1);
+        
+        if (this.platformsPlaced >= targetPlatformCount && !this.levelEndPlatformCreated) {
+            this.createLevelEndPlatform();
+        }
+        
+        // Check if player has reached the level end platform
+        if (this.levelEndPlatform && this.player && !this.levelCompleted) {
+            const distanceToEnd = Math.abs(this.player.x - this.levelEndPlatform.x);
+            if (distanceToEnd < 50) { // Player is close to the end platform
+                this.levelCompleted = true;
+                this.completeLevel();
+            }
+        }
+    }
+
+    createLevelEndPlatform() {
+        // Get the rightmost platform to place the end platform after it
+        const rightmostPlatform = this.getRightmostPlatform();
+        if (!rightmostPlatform) {
+            console.warn('[WARNING] No rightmost platform found for level end platform');
+            return;
+        }
+        
+        // Create the level end platform
+        const endX = rightmostPlatform.x + 150; // 150px after the last platform
+        const endY = 350; // Mid level for easy access
+        
+        this.levelEndPlatform = this.add.rectangle(endX, endY, 200, 20, 0x00ff00); // Green platform
+        this.platforms.add(this.levelEndPlatform);
+        this.physics.add.existing(this.levelEndPlatform, true);
+        this.levelEndPlatform.body.allowGravity = false;
+        
+        // Add "ENTER TO NEXT LEVEL" text
+        this.levelEndText = this.add.text(endX, endY - 40, 'ENTER TO NEXT LEVEL', {
+            fontSize: '16px',
+            fill: '#00ff00',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        // Add a collectible resource on the end platform
+        this.addResourceToPlatform(this.levelEndPlatform);
+        
+        this.levelEndPlatformCreated = true;
+        
+        console.log(`[DEBUG] Level end platform created at (${endX}, ${endY})`);
+    }
+
+    completeLevel() {
+        // Calculate resources collected during this level
+        const resourcesCollected = {
+            iron: window.SHARED.resources.stone - (this.initialResources?.stone || 0),
+            ice: window.SHARED.resources.ice - (this.initialResources?.ice || 0),
+            solar: window.SHARED.resources.energy - (this.initialResources?.energy || 0)
+        };
+        
+        // Prepare level data to pass to LevelComplete scene
+        const levelData = {
+            resourcesCollected: resourcesCollected,
+            livesRemaining: this.lives,
+            level: window.SHARED.level,
+            score: this.score
+        };
+        
+        console.log('[DEBUG] Level completed! Resources collected:', resourcesCollected);
+        
+        // Stop the game and show level complete screen
+        this.gameOver = true;
+        this.scene.start('LevelComplete', levelData);
+    }
     
     loseLife() {
-        // Don't call loseLife if game is already over
-        if (this.gameOver) {
+        // Don't call loseLife if game is already over or level is completed
+        if (this.gameOver || this.levelCompleted) {
             return;
         }
     
@@ -717,12 +564,34 @@ class GameScene extends Phaser.Scene {
     }
 
     wake() {
-        // Reset player when returning from LifeLost scene
+        // Reset player when returning from LifeLost scene or LevelComplete scene
         this.resetPlayer();
         
         // Refresh lives display to ensure it's current
         this.lives = window.SHARED.lives;
         this.livesText.setText(`Lives: ${this.lives}`);
+        
+        // Reset level completion state
+        this.levelCompleted = false;
+        this.platformsPlaced = 0;
+        this.levelEndPlatformCreated = false;
+        this.levelEndPlatform = null;
+        if (this.levelEndText) {
+            this.levelEndText.destroy();
+            this.levelEndText = null;
+        }
+        
+        // Update auto speed based on current level
+        this.autoSpeed = 150 + (window.SHARED.level - 1) * 20;
+        
+        // Track initial resources for the new level
+        this.initialResources = {
+            stone: window.SHARED.resources.stone,
+            ice: window.SHARED.resources.ice,
+            energy: window.SHARED.resources.energy
+        };
+        
+        console.log(`[DEBUG] Waking up for level ${window.SHARED.level} with speed ${this.autoSpeed}`);
     }
 
     endGame() {
@@ -781,6 +650,12 @@ class GameScene extends Phaser.Scene {
             resource.setScale(0.08); // Same scale as iron orbs
             resource.body.setSize(resource.width * 0.08, resource.height * 0.08); // Match physics body to new size
             console.log('[DEBUG] Ice resource created at', resourceX, resourceY);
+        } else if (resourceType === 'solar') {
+            // Use the solar orb asset with proper scaling
+            resource = this.resources.create(resourceX, resourceY, 'resource_solar_orb');
+            resource.setScale(0.08); // Same scale as other resources
+            resource.body.setSize(resource.width * 0.08, resource.height * 0.08); // Match physics body to new size
+            console.log('[DEBUG] Solar resource created at', resourceX, resourceY);
         } else {
             // Handle iron and other resources with scaling
             resource = this.resources.create(resourceX, resourceY, resourceType);
@@ -804,7 +679,13 @@ class GameScene extends Phaser.Scene {
         console.log(`[DEBUG] Added ${resourceType} resource at (${resourceX}, ${resourceY})`);
 
         // Alternate between resource types for next platform
-        this.nextResourceType = this.nextResourceType === 'iron' ? 'ice' : 'iron';
+        if (this.nextResourceType === 'iron') {
+            this.nextResourceType = 'ice';
+        } else if (this.nextResourceType === 'ice') {
+            this.nextResourceType = 'solar';
+        } else {
+            this.nextResourceType = 'iron'; // Cycle back to iron
+        }
     }
 
     collectResource(player, resource) {
@@ -824,6 +705,9 @@ class GameScene extends Phaser.Scene {
         } else if (resourceType === 'ice') {
             window.SHARED.resources.ice += 1;
             this.iceText.setText(`Ice: ${window.SHARED.resources.ice}`);
+        } else if (resourceType === 'solar') {
+            window.SHARED.resources.energy += 1;
+            this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
         }
         
         console.log(`[DEBUG] Collected ${resourceType} resource! Score: ${this.score}`);
