@@ -49,10 +49,7 @@ export const ASSETS = {
     ICONS: {
         CATCRETE: 'assets/icon_catcrete.png',
         FISHICE: 'assets/icon_fishice.png',
-        SOLARPURR: 'assets/icon_solarpurr.png',
-        ENERGY: 'assets/energy_icon.png',
-        ICE: 'assets/ice_icon.png',
-        ORE: 'assets/ore_icon.png'
+        SOLARPURR: 'assets/icon_solarpurr.png'
     },
     
     // Resources
@@ -80,10 +77,6 @@ export const ASSETS = {
     
     // UI
     UI: {
-        TITLE: 'assets/title.png',
-        PROGRESS_BAR: 'assets/progress_bar.png',
-        GAMEOVER_SCREEN: 'assets/gameover_screen.png',
-        LIFE_LOST_SCREEN: 'assets/life_lost_screen.png',
         BUILD_MENU_FRAME: 'assets/ui/build_menu_frame.png'
     },
     

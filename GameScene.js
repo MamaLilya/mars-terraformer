@@ -28,22 +28,27 @@ class GameScene extends Phaser.Scene {
 
     preload() {
         // Load game assets
-        this.load.image('energy_icon', 'assets/energy_icon.png');
-        this.load.image('ice_icon', 'assets/ice_icon.png');
-        this.load.image('iron', 'assets/resource_iron_orb.png');
-        this.load.image('ice', 'assets/ice_icon.png'); // Use ice_icon for ice collectibles too
-        this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png'); // New ice orb asset
-        this.load.image('resource_solar_orb', 'assets/resource_solar_orb.png'); // Solar energy resource
-        this.load.image('progress_bar', 'assets/progress_bar.png');
-        this.load.image('gameover_screen', 'assets/gameover_screen.png');
-        this.load.image('life_lost_screen', 'assets/life_lost_screen.png');
         this.load.image('game_bg', 'assets/game_bg.png');
         
         // Load new cat colonist as spritesheet (4 vertical frames, 60x60 each)
-        this.load.spritesheet('cat_colonist_new', 'assets/Kosmonautas katinas ant uolų (2).png', {
+        this.load.spritesheet('cat_colonist_new', 'assets/cat_colonist_sheet.png', {
             frameWidth: 60,
             frameHeight: 60
         });
+        // Load tuxedo cat as spritesheet (4 vertical frames, 60x60 each)
+        this.load.spritesheet('tuxedo_cat_sprite', 'assets/tuxedo_cat_sprite.png', {
+            frameWidth: 60,
+            frameHeight: 60
+        });
+        
+        // Load static cat images as fallbacks
+        this.load.image('cat_white_static', 'assets/cat_white.png');
+        this.load.image('cat_tuxedo_static', 'assets/cat_tuxedo.png');
+        
+        // Load resource assets
+        this.load.image('iron', 'assets/resource_iron_orb.png');
+        this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png');
+        this.load.image('resource_solar_orb', 'assets/resource_solar_orb.png');
         
         // (Optional) Mew sound
         // this.load.audio('mew', 'assets/mew.wav');
@@ -65,7 +70,7 @@ class GameScene extends Phaser.Scene {
         console.log('[DEBUG] Enhanced player texture created (40x60)');
     }
 
-    create() {
+    create(data) {
         const { width, height } = this.scale;
 
         // Add background - make it cover the entire world
@@ -138,58 +143,66 @@ class GameScene extends Phaser.Scene {
         // Position player on the first platform
         if (firstPlatform) {
             this.startX = firstPlatform.x;
-            this.startY = firstPlatform.y - 47; // Lowered further for more grounded look
-            console.log(`[DEBUG] Positioning player on platform at (${this.startX}, ${this.startY})`);
+            this.startY = firstPlatform.y - 47;
         } else {
             this.startX = 250;
-            this.startY = 403; // Lowered fallback position for more grounded look
-            console.log(`[DEBUG] Using fallback player position at (${this.startX}, ${this.startY})`);
+            this.startY = 403;
         }
     
-        // Create cat colonist player using new spritesheet
-        this.player = this.physics.add.sprite(this.startX, this.startY, 'cat_colonist_new', 0);
-        this.player.setScale(1.15); // Make the image larger to better fit the physics body
-        this.player.body.setSize(60, 60); // Match sprite size exactly
+        // --- Cat selection logic ---
+        let playerTexture = 'cat_colonist_new';
+        let useAnimations = true;
+        
+        if (data && data.selectedCat) {
+            if (data.selectedCat === 'cat_white') {
+                // Try spritesheet first, fallback to static image
+                if (this.textures.exists('cat_colonist_new')) {
+                    playerTexture = 'cat_colonist_new';
+                    useAnimations = true;
+                } else {
+                    playerTexture = 'cat_white_static';
+                    useAnimations = false;
+                }
+            } else if (data.selectedCat === 'cat_tuxedo') {
+                // Try spritesheet first, fallback to static image
+                if (this.textures.exists('tuxedo_cat_sprite')) {
+                    playerTexture = 'tuxedo_cat_sprite';
+                    useAnimations = true;
+                } else {
+                    playerTexture = 'cat_tuxedo_static';
+                    useAnimations = false;
+                }
+            }
+        }
+        
+        this.player = this.physics.add.sprite(this.startX, this.startY, playerTexture, 0);
+        this.player.setScale(1.15);
+        this.player.body.setSize(60, 60);
         this.player.body.setOffset(0, 0);
-        // Force visibility, depth, and alpha
         this.player.setVisible(true);
         this.player.setDepth(1000);
         this.player.setAlpha(1);
-        console.log('[DEBUG] Player forced visible, depth 1000, alpha 1');
-        // Setup physics using original constants
         this.player.setCollideWorldBounds(true);
         this.player.setGravityY(CONSTANTS.PLAYER.GRAVITY);
         this.player.setBounce(CONSTANTS.PLAYER.BOUNCE);
-        // Setup visibility
         this.player.setVisible(true);
         this.player.setDepth(CONSTANTS.PLAYER.DEPTH);
-        // Setup player state
         this.player.setData('onPlatform', true);
         this.player.setData('jumping', false);
         this.player.setData('doubleJumpAvailable', true);
-        console.log('[DEBUG] Using original physics constants');
-        console.log('[DEBUG] Player scale:', CONSTANTS.PLAYER.SCALE);
-        console.log('[DEBUG] Physics body size:', CONSTANTS.PLAYER.BODY_SIZE, 'x', CONSTANTS.PLAYER.BODY_SIZE);
-        console.log('[DEBUG] Player texture key:', this.player.texture.key);
-        console.log('[DEBUG] Player frame:', this.player.frame.name);
-        console.log('[DEBUG] Cat colonist player created at:', this.startX, this.startY);
-        console.log('[DEBUG] Player visible:', this.player.visible);
-        console.log('[DEBUG] Player width:', this.player.width);
-        console.log('[DEBUG] Player height:', this.player.height);
-        console.log('[DEBUG] Player position:', this.player.x, this.player.y);
-        // Ensure camera follows player immediately
-        // Camera logic will be after animation
-        // Create animations for cat colonist BEFORE playing any
-        this.createCatAnimations();
-        // Start with idle animation
-        this.player.play('cat_idle'); // Enable animation
-        // Log animation state
-        console.log('[DEBUG] Player animation after play:', this.player.anims.currentAnim && this.player.anims.currentAnim.key);
-        console.log('[DEBUG] Player animation frame:', this.player.anims.currentFrame && this.player.anims.currentFrame.index);
-        console.log('[DEBUG] Player alpha:', this.player.alpha);
-        // Now set up camera follow after all player setup
+        
+        // Only create and play animations if using spritesheets
+        if (useAnimations) {
+            this.createCatAnimations(playerTexture);
+            // Store animation prefix for this cat type
+            this.catAnimPrefix = playerTexture === 'tuxedo_cat_sprite' ? 'tuxedo' : 'cat';
+            this.player.play(`${this.catAnimPrefix}_idle`);
+        } else {
+            // For static images, just ensure they're visible
+            this.player.setVisible(true);
+            this.catAnimPrefix = null;
+        }
         this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-        // Force camera to center on player
         this.cameras.main.scrollX = this.player.x - this.cameras.main.width / 2;
         this.cameras.main.scrollY = this.player.y - this.cameras.main.height / 2;
         console.log('[DEBUG] Camera forcibly centered on player:', this.cameras.main.scrollX, this.cameras.main.scrollY);
@@ -306,11 +319,7 @@ class GameScene extends Phaser.Scene {
             strokeThickness: 2
         }).setScrollFactor(0).setDepth(10).setOrigin(1, 0);
 
-        // Create animations for cat colonist
-        this.createCatAnimations();
-        
-        // Start with idle animation
-        this.player.play('cat_idle'); // Enable animation
+        // Start with idle animation (already set above)
         // Log animation state
         console.log('[DEBUG] Player animation after play:', this.player.anims.currentAnim && this.player.anims.currentAnim.key);
         console.log('[DEBUG] Player animation frame:', this.player.anims.currentFrame && this.player.anims.currentFrame.index);
@@ -576,46 +585,48 @@ class GameScene extends Phaser.Scene {
         // Check for level completion
         this.checkLevelCompletion();
 
-        // Animation logic for cat colonist
-        const playerOnGround = this.player.body.touching.down || this.player.body.blocked.down;
-        let currentState = 'idle';
-        
-        if (playerOnGround) {
-            if (Math.abs(this.player.body.velocity.x) > 10) {
-                // Walking
-                currentState = 'walk';
-                if (this.player.anims.currentAnim?.key !== 'cat_walk') {
-                    this.player.play('cat_walk', true);
+        // Animation logic for cat colonist (only if using spritesheets)
+        if (this.catAnimPrefix) {
+            const playerOnGround = this.player.body.touching.down || this.player.body.blocked.down;
+            let currentState = 'idle';
+            
+            if (playerOnGround) {
+                if (Math.abs(this.player.body.velocity.x) > 10) {
+                    // Walking
+                    currentState = 'walk';
+                    if (this.player.anims.currentAnim?.key !== `${this.catAnimPrefix}_walk`) {
+                        this.player.play(`${this.catAnimPrefix}_walk`, true);
+                    }
+                } else {
+                    // Idle
+                    currentState = 'idle';
+                    if (this.player.anims.currentAnim?.key !== `${this.catAnimPrefix}_idle`) {
+                        this.player.play(`${this.catAnimPrefix}_idle`, true);
+                    }
                 }
             } else {
-                // Idle
-                currentState = 'idle';
-                if (this.player.anims.currentAnim?.key !== 'cat_idle') {
-                    this.player.play('cat_idle', true);
+                // Jumping/Falling
+                currentState = 'jump';
+                if (this.player.anims.currentAnim?.key !== `${this.catAnimPrefix}_jump`) {
+                    this.player.play(`${this.catAnimPrefix}_jump`, true);
                 }
             }
-        } else {
-            // Jumping/Falling
-            currentState = 'jump';
-            if (this.player.anims.currentAnim?.key !== 'cat_jump') {
-                this.player.play('cat_jump', true);
+            
+            // Update state tracking with delay to prevent rapid changes
+            const lastState = this.player.getData('lastState');
+            const lastStateTime = this.player.getData('lastStateTime') || 0;
+            const currentTime = this.time.now;
+            
+            if (currentState !== lastState && (currentTime - lastStateTime) > 100) {
+                this.player.setData('lastState', currentState);
+                this.player.setData('currentState', currentState);
+                this.player.setData('lastStateTime', currentTime);
+                console.log(`[DEBUG] Cat state changed from ${lastState} to ${currentState}`);
             }
         }
         
         // Ensure player is always visible
         this.player.setVisible(true);
-        
-        // Update state tracking with delay to prevent rapid changes
-        const lastState = this.player.getData('lastState');
-        const lastStateTime = this.player.getData('lastStateTime') || 0;
-        const currentTime = this.time.now;
-        
-        if (currentState !== lastState && (currentTime - lastStateTime) > 100) {
-            this.player.setData('lastState', currentState);
-            this.player.setData('currentState', currentState);
-            this.player.setData('lastStateTime', currentTime);
-            console.log(`[DEBUG] Cat state changed from ${lastState} to ${currentState}`);
-        }
         
         // Robust resource UI updates
         if (this.catcreteText) this.catcreteText.setText(`Catcrete: ${window.SHARED.resources.stone}`);
@@ -950,58 +961,34 @@ class GameScene extends Phaser.Scene {
     }
 
     // Create animations for cat colonist
-    createCatAnimations() {
-        console.log('[DEBUG] Creating cat colonist animations...');
+    createCatAnimations(textureKey = 'cat_colonist_new') {
+        console.log(`[DEBUG] Creating cat animations for ${textureKey}...`);
         
-        // Check if spritesheet exists for animations
-        if (this.textures.exists('cat_colonist_new')) {
-            // Create idle animation using all 4 frames
+        // Create unique animation keys based on the texture
+        const animPrefix = textureKey === 'tuxedo_cat_sprite' ? 'tuxedo' : 'cat';
+        
+        if (this.textures.exists(textureKey)) {
             this.anims.create({
-                key: 'cat_idle',
-                frames: this.anims.generateFrameNumbers('cat_colonist_new', { start: 0, end: 3 }),
+                key: `${animPrefix}_idle`,
+                frames: this.anims.generateFrameNumbers(textureKey, { start: 0, end: 3 }),
                 frameRate: 4,
                 repeat: -1
             });
-
-            // Create walk animation using frames 0-3
             this.anims.create({
-                key: 'cat_walk',
-                frames: this.anims.generateFrameNumbers('cat_colonist_new', { start: 0, end: 3 }),
+                key: `${animPrefix}_walk`,
+                frames: this.anims.generateFrameNumbers(textureKey, { start: 0, end: 3 }),
                 frameRate: 6,
                 repeat: -1
             });
-
-            // Create jump animation using frame 2
             this.anims.create({
-                key: 'cat_jump',
-                frames: [{ key: 'cat_colonist_new', frame: 2 }],
+                key: `${animPrefix}_jump`,
+                frames: [{ key: textureKey, frame: 2 }],
                 frameRate: 1,
                 repeat: -1
             });
+            console.log(`[DEBUG] Cat animations for ${textureKey} created successfully`);
         } else {
-            // Fallback animations using single image
-            this.anims.create({
-                key: 'cat_idle',
-                frames: [{ key: 'cat_colonist_single' }],
-                frameRate: 1,
-                repeat: -1
-            });
-
-            this.anims.create({
-                key: 'cat_walk',
-                frames: [{ key: 'cat_colonist_single' }],
-                frameRate: 6,
-                repeat: -1
-            });
-
-            this.anims.create({
-                key: 'cat_jump',
-                frames: [{ key: 'cat_colonist_single' }],
-                frameRate: 1,
-                repeat: -1
-            });
+            console.warn(`[WARNING] Texture ${textureKey} not found, skipping animation creation`);
         }
-        
-        console.log('[DEBUG] Cat colonist animations created successfully');
     }
 }

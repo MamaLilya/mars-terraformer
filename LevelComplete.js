@@ -17,7 +17,6 @@ class LevelComplete extends Phaser.Scene {
         this.load.image('resource_iron_orb', 'assets/resource_iron_orb.png');
         this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png');
         this.load.image('resource_solar_orb', 'assets/resource_solar_orb.png');
-        this.load.image('energy_icon', 'assets/energy_icon.png');
     }
 
     create(data) {

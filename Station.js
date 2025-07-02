@@ -84,6 +84,12 @@ class Station extends Phaser.Scene {
         this.load.image('icon_fishice', 'assets/icon_fishice.png');
         this.load.image('icon_solarpurr', 'assets/icon_solarpurr.png');
         this.load.image('ui/build_menu_frame', 'assets/ui/build_menu_frame.png');
+        this.load.image('cat_white', 'assets/cat_white.png');
+        this.load.image('cat_tuxedo', 'assets/cat_tuxedo.png');
+        this.load.spritesheet('tuxedo_cat_sprite', 'assets/tuxedo_cat_sprite.png', {
+            frameWidth: 60,
+            frameHeight: 60
+        });
     }
 
     create() {
@@ -136,7 +142,7 @@ class Station extends Phaser.Scene {
         const navY = height - (footerSlice / 2);
         this.createNavButton(width * 0.2, navY, '< Back', () => this.scene.start('WorldMap'));
         this.createNavButton(width * 0.4, navY, 'Build 🏗️', () => this.toggleBuildMenu());
-        this.createNavButton(width * 0.6, navY, 'Explore Mars', () => this.scene.start('GameScene'));
+        this.createNavButton(width * 0.6, navY, 'Explore Mars', () => this.showCatSelectWindow());
         this.cancelButton = this.createNavButton(width * 0.8, navY, 'Cancel Build', () => {
             this.exitBuildMode();
         }).setVisible(false);
@@ -454,5 +460,50 @@ class Station extends Phaser.Scene {
                 }
             }});
         });
+    }
+
+    showCatSelectWindow() {
+        const { width, height } = this.scale;
+        // Overlay
+        const overlay = this.add.rectangle(width/2, height/2, width, height, 0x000000, 0.7).setDepth(100).setScrollFactor(0);
+        // Window
+        const windowWidth = Math.min(600, width * 0.9);
+        const windowHeight = Math.min(350, height * 0.6);
+        const windowBg = this.add.rectangle(width/2, height/2, windowWidth, windowHeight, 0x222222, 0.98)
+            .setStrokeStyle(4, 0xffffff)
+            .setDepth(101).setScrollFactor(0);
+        // Title
+        const title = this.add.text(width/2, height/2 - windowHeight/2 + 40, 'Select a Cat', {
+            fontSize: '32px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
+        }).setOrigin(0.5).setDepth(102).setScrollFactor(0);
+        // Card positions
+        const cardY = height/2 + 20;
+        const cardSpacing = 180;
+        const cardX1 = width/2 - cardSpacing;
+        const cardX2 = width/2 + cardSpacing;
+        // White Cat Card
+        const whiteCard = this.add.container(cardX1, cardY).setDepth(102);
+        const whiteImg = this.add.image(0, -30, 'cat_white').setScale(2).setOrigin(0.5);
+        const whiteLabel = this.add.text(0, 40, 'White Cat', { fontSize: '20px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+        const whiteBtn = this.add.text(0, 80, 'Select', { fontSize: '18px', color: '#222', backgroundColor: '#fff', padding: { x: 24, y: 8 }, fontStyle: 'bold', stroke: '#000', strokeThickness: 2 })
+            .setOrigin(0.5).setInteractive({ useHandCursor: true });
+        whiteBtn.on('pointerdown', () => this.selectCat('cat_white', [overlay, windowBg, title, whiteCard, tuxedoCard]));
+        whiteCard.add([whiteImg, whiteLabel, whiteBtn]);
+        // Tuxedo Cat Card
+        const tuxedoCard = this.add.container(cardX2, cardY).setDepth(102);
+        // Use the tuxedo_cat_sprite as a spritesheet preview (first frame)
+        const tuxedoPreview = this.add.sprite(0, -30, 'tuxedo_cat_sprite', 0).setScale(2).setOrigin(0.5);
+        const tuxedoLabel = this.add.text(0, 40, 'Tuxedo Cat', { fontSize: '20px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+        const tuxedoBtn = this.add.text(0, 80, 'Select', { fontSize: '18px', color: '#222', backgroundColor: '#fff', padding: { x: 24, y: 8 }, fontStyle: 'bold', stroke: '#000', strokeThickness: 2 })
+            .setOrigin(0.5).setInteractive({ useHandCursor: true });
+        tuxedoBtn.on('pointerdown', () => this.selectCat('cat_tuxedo', [overlay, windowBg, title, whiteCard, tuxedoCard]));
+        tuxedoCard.add([tuxedoPreview, tuxedoLabel, tuxedoBtn]);
+    }
+
+    selectCat(catKey, uiElements) {
+        // Remove the UI
+        uiElements.forEach(el => el.destroy());
+        // Start the game and pass the selected cat
+        this.scene.start('GameScene', { selectedCat: catKey });
     }
 } 

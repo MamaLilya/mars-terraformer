@@ -118,8 +118,6 @@ export class AssetLoader {
         
         // Additional game-specific assets
         this.scene.load.image('iron', 'assets/resource_iron_orb.png');
-        this.scene.load.image('ice', 'assets/ice_icon.png');
-        this.scene.load.image('progress_bar', 'assets/progress_bar.png');
     }
 
     /**
@@ -163,7 +161,7 @@ export class AssetLoader {
      */
     loadGameOverAssets() {
         this.loadCommonAssets();
-        this.scene.load.image('gameover_screen', ASSETS.UI.GAMEOVER_SCREEN);
+        // Game over assets would go here
     }
 
     /**
@@ -171,7 +169,7 @@ export class AssetLoader {
      */
     loadLifeLostAssets() {
         this.loadCommonAssets();
-        this.scene.load.image('life_lost_screen', ASSETS.UI.LIFE_LOST_SCREEN);
+        // Life lost assets would go here
     }
 
     /**
