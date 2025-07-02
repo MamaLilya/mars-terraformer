@@ -5,7 +5,6 @@ class WorldMap extends Phaser.Scene {
 
     preload() {
         this.load.image('planet', 'assets/main_menu_background.png'); // Using this as a placeholder for Mars
-        this.load.image('title', 'assets/title.png');
     }
 
     create() {

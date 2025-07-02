@@ -1,6 +1,6 @@
 class LevelComplete extends Phaser.Scene {
     constructor() {
-        super({ key: 'LevelComplete' });
+        super('LevelComplete');
     }
 
     preload() {
@@ -9,9 +9,14 @@ class LevelComplete extends Phaser.Scene {
         this.load.image('level_frame', 'assets/level_complete_frame.png');
         this.load.image('ui_frame', 'assets/ui_frame.png');
         this.load.image('button_frame', 'assets/button_frame.png');
-        this.load.image('iron', 'assets/resource_iron_orb.png');
-        this.load.image('ice', 'assets/resource_ice_orb.png');
-        this.load.image('solar', 'assets/resource_solar_orb.png');
+        // Load cat-themed resource icons
+        this.load.image('icon_catcrete', 'assets/icon_catcrete.png');
+        this.load.image('icon_fishice', 'assets/icon_fishice.png');
+        this.load.image('icon_solarpurr', 'assets/icon_solarpurr.png');
+        // Fallback to old icons if new ones don't exist
+        this.load.image('resource_iron_orb', 'assets/resource_iron_orb.png');
+        this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png');
+        this.load.image('resource_solar_orb', 'assets/resource_solar_orb.png');
         this.load.image('energy_icon', 'assets/energy_icon.png');
     }
 
@@ -56,16 +61,24 @@ class LevelComplete extends Phaser.Scene {
         const centerX = width / 2;
         
         const resources = [
-            { key: 'iron', icon: 'iron', label: 'Iron', count: this.resourcesCollected.iron },
-            { key: 'ice', icon: 'ice', label: 'Ice', count: this.resourcesCollected.ice },
-            { key: 'solar', icon: 'solar', label: 'Solar', count: this.resourcesCollected.solar }
+            { key: 'iron', icon: 'icon_catcrete', label: 'Catcrete', count: this.resourcesCollected.iron },
+            { key: 'ice', icon: 'icon_fishice', label: 'Fish-Ice', count: this.resourcesCollected.ice },
+            { key: 'solar', icon: 'icon_solarpurr', label: 'Solar Purr', count: this.resourcesCollected.solar }
         ];
         
         resources.forEach((resource, index) => {
             const xPos = centerX - 150 + (index * 150);
             
-            // Resource icon
-            const icon = this.add.image(xPos - 20, yPos, resource.icon).setScale(0.06);
+            // Resource icon with fallback
+            let icon;
+            try {
+                icon = this.add.image(xPos - 20, yPos, resource.icon).setScale(0.15);
+            } catch (e) {
+                // Fallback to old icons if new ones don't exist
+                const fallbackIcon = resource.key === 'iron' ? 'resource_iron_orb' : 
+                                   resource.key === 'ice' ? 'resource_ice_orb' : 'resource_solar_orb';
+                icon = this.add.image(xPos - 20, yPos, fallbackIcon).setScale(0.15);
+            }
             
             // Resource label
             const label = this.add.text(xPos + 10, yPos - 10, resource.label, {
@@ -191,4 +204,6 @@ class LevelComplete extends Phaser.Scene {
         // You can implement the station building logic later
         this.scene.start('Station');
     }
-} 
+}
+
+window.LevelComplete = LevelComplete; 

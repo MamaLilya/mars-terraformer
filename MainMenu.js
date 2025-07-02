@@ -11,7 +11,7 @@ class MainMenu extends Phaser.Scene {
     create() {
         const { width, height } = this.scale;
         
-        // --- New Background System ---
+        // --- Background System ---
         this.cameras.main.setBackgroundColor('#220804');
         this.add.image(width / 2, height / 2, 'main_menu_fg')
             .setOrigin(0.5)
@@ -20,7 +20,7 @@ class MainMenu extends Phaser.Scene {
 
         // --- Primary Station Button (Centered Image) ---
         const stationBtn = this.add.image(width / 2, height * 0.5, 'btn_station')
-            .setScale(0.2) // A balanced scale for the primary button
+            .setScale(0.32, 0.2) // Wider X scale for the primary button
             .setOrigin(0.5)
             .setInteractive();
         this.addHoverEffect(stationBtn, () => this.scene.start('Station'));

@@ -1,26 +1,51 @@
-const SHARED = {
-    resources: { stone: 0, ice: 0, energy: 0 },
-    level: 1,
-    lives: 3,
-    terraforming: 0,
+/**
+ * Main Game Entry Point
+ * Cat Colony: Mars Terraformation
+ */
+
+// Initialize shared state
+window.SHARED = {
+    resources: {
+        stone: 100,
+        ice: 100,
+        energy: 100
+    },
+    progress: {
+        level: 1,
+        terraforming: 0,
+        missions_completed: 0
+    },
+    lives: 3
 };
 
-const config = {
+// Game configuration
+const GAME_CONFIG = {
     type: Phaser.AUTO,
-    width: window.innerWidth,
-    height: window.innerHeight,
-    backgroundColor: '#222',
+    width: 1200,
+    height: 800,
     parent: 'game-container',
-    scale: {
-        mode: Phaser.Scale.ENVELOP,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-    },
-    scene: [MainMenu, WorldMap, Station, GameScene, LevelComplete, GameOver, Shop, Ranking, Settings, LifeLost],
+    backgroundColor: '#1a1a2e',
     physics: {
         default: 'arcade',
-        arcade: { gravity: { y: 1000 }, debug: false },
+        arcade: {
+            gravity: { y: 800 },
+            debug: false
+        }
     },
+    scene: [
+        MainMenu, WorldMap, Station, GameScene, LevelComplete,
+        GameOver, LifeLost, Shop, Ranking, Settings
+    ],
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    }
 };
 
-window.SHARED = SHARED;
-window.game = new Phaser.Game(config);
+// Create and start the game
+const game = new Phaser.Game(GAME_CONFIG);
+
+// Hide loading screen when game is ready
+game.events.once('ready', () => {
+    document.getElementById('loading').style.display = 'none';
+});

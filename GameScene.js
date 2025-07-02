@@ -1,5 +1,16 @@
 function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 
+// Import constants from config
+const CONSTANTS = {
+    PLAYER: {
+        SCALE: 1.0,
+        GRAVITY: 800,
+        BOUNCE: 0.1,
+        BODY_SIZE: 64,
+        DEPTH: 9999
+    }
+};
+
 // Platform pattern definitions - moved to top level for global access
 const PLATFORM_PATTERNS = [
     [450, 350], // Simple ascent - 2 platforms
@@ -24,22 +35,34 @@ class GameScene extends Phaser.Scene {
         this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png'); // New ice orb asset
         this.load.image('resource_solar_orb', 'assets/resource_solar_orb.png'); // Solar energy resource
         this.load.image('progress_bar', 'assets/progress_bar.png');
-        this.load.image('rover', 'assets/rover.png');
-        this.load.image('solar_panel', 'assets/solar_panel.png');
-        this.load.image('title', 'assets/title.png');
-        this.load.image('habitat', 'assets/habitat.png');
         this.load.image('gameover_screen', 'assets/gameover_screen.png');
         this.load.image('life_lost_screen', 'assets/life_lost_screen.png');
         this.load.image('game_bg', 'assets/game_bg.png');
+        
+        // Load new cat colonist as spritesheet (4 vertical frames, 60x60 each)
+        this.load.spritesheet('cat_colonist_new', 'assets/Kosmonautas katinas ant uolų (2).png', {
+            frameWidth: 60,
+            frameHeight: 60
+        });
+        
+        // (Optional) Mew sound
+        // this.load.audio('mew', 'assets/mew.wav');
+        this.load.image('icon_catcrete', 'assets/icon_catcrete.png');
+        this.load.image('icon_fishice', 'assets/icon_fishice.png');
+        this.load.image('icon_solarpurr', 'assets/icon_solarpurr.png');
 
-        // Create simple graphics for player
+        // Create animated player with better visuals
         const playerGraphics = this.add.graphics();
         playerGraphics.fillStyle(0x00aaff);
         playerGraphics.fillRect(0, 0, 40, 60);
+        // Add some details to make player more interesting
+        playerGraphics.fillStyle(0x0088cc);
+        playerGraphics.fillRect(5, 10, 30, 20); // Helmet
+        playerGraphics.fillRect(15, 45, 10, 15); // Legs
         playerGraphics.generateTexture('player', 40, 60);
         playerGraphics.destroy();
-        
-        console.log('[DEBUG] Simple player texture created (40x60)');
+
+        console.log('[DEBUG] Enhanced player texture created (40x60)');
     }
 
     create() {
@@ -86,11 +109,11 @@ class GameScene extends Phaser.Scene {
             energy: window.SHARED.resources.energy
         };
     
-        this.autoSpeed = 150 + (window.SHARED.level - 1) * 20;
+        this.autoSpeed = 150 + (window.SHARED.progress.level - 1) * 20;
     
         // ALWAYS re-initialize platforms group
         this.platforms = this.physics.add.staticGroup();
-        
+    
         // Initialize resources group for collectibles BEFORE any resource logic
         this.resources = this.physics.add.group();
         
@@ -98,7 +121,7 @@ class GameScene extends Phaser.Scene {
         this.nextResourceType = 'iron'; // Start with iron
         
         // Create initial platforms
-        this.generateFixedPlatformPattern();
+        const firstPlatform = this.generateFixedPlatformPattern();
         
         // Create a second platform closer to the first one for better gameplay
         const secondPlatformX = 250 + 200 + 120; // Right edge of first platform (200px wide) + gap
@@ -112,83 +135,103 @@ class GameScene extends Phaser.Scene {
         this.lava = this.add.rectangle(0, 580, 4000, 40, 0xff0000, 0.5);
         this.lava.setOrigin(0, 0);
 
+        // Position player on the first platform
+        if (firstPlatform) {
+            this.startX = firstPlatform.x;
+            this.startY = firstPlatform.y - 47; // Lowered further for more grounded look
+            console.log(`[DEBUG] Positioning player on platform at (${this.startX}, ${this.startY})`);
+        } else {
+            this.startX = 250;
+            this.startY = 403; // Lowered fallback position for more grounded look
+            console.log(`[DEBUG] Using fallback player position at (${this.startX}, ${this.startY})`);
+        }
     
-        this.player = this.physics.add.sprite(this.startX, this.startY, 'player');
-        this.player.setBounce(0.1);
-        this.player.setCollideWorldBounds(true);
-        this.player.setGravityY(800);
-
-        // Ensure player collision box is properly set up
-        this.player.body.setSize(40, 60);
+        // Create cat colonist player using new spritesheet
+        this.player = this.physics.add.sprite(this.startX, this.startY, 'cat_colonist_new', 0);
+        this.player.setScale(1.15); // Make the image larger to better fit the physics body
+        this.player.body.setSize(60, 60); // Match sprite size exactly
         this.player.body.setOffset(0, 0);
-
-        console.log('[DEBUG] Player created at position (250, 430)');
-        console.log('[DEBUG] Player body size:', this.player.body.width, 'x', this.player.body.height);
-        console.log('[DEBUG] Player body offset:', this.player.body.offset.x, 'x', this.player.body.offset.y);
-
-        this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    
-        // Ensure physics collider is set up after both player and platforms are created
+        // Force visibility, depth, and alpha
+        this.player.setVisible(true);
+        this.player.setDepth(1000);
+        this.player.setAlpha(1);
+        console.log('[DEBUG] Player forced visible, depth 1000, alpha 1');
+        // Setup physics using original constants
+        this.player.setCollideWorldBounds(true);
+        this.player.setGravityY(CONSTANTS.PLAYER.GRAVITY);
+        this.player.setBounce(CONSTANTS.PLAYER.BOUNCE);
+        // Setup visibility
+        this.player.setVisible(true);
+        this.player.setDepth(CONSTANTS.PLAYER.DEPTH);
+        // Setup player state
+        this.player.setData('onPlatform', true);
+        this.player.setData('jumping', false);
+        this.player.setData('doubleJumpAvailable', true);
+        console.log('[DEBUG] Using original physics constants');
+        console.log('[DEBUG] Player scale:', CONSTANTS.PLAYER.SCALE);
+        console.log('[DEBUG] Physics body size:', CONSTANTS.PLAYER.BODY_SIZE, 'x', CONSTANTS.PLAYER.BODY_SIZE);
+        console.log('[DEBUG] Player texture key:', this.player.texture.key);
+        console.log('[DEBUG] Player frame:', this.player.frame.name);
+        console.log('[DEBUG] Cat colonist player created at:', this.startX, this.startY);
+        console.log('[DEBUG] Player visible:', this.player.visible);
+        console.log('[DEBUG] Player width:', this.player.width);
+        console.log('[DEBUG] Player height:', this.player.height);
+        console.log('[DEBUG] Player position:', this.player.x, this.player.y);
+        // Ensure camera follows player immediately
+        // Camera logic will be after animation
+        // Create animations for cat colonist BEFORE playing any
+        this.createCatAnimations();
+        // Start with idle animation
+        this.player.play('cat_idle'); // Enable animation
+        // Log animation state
+        console.log('[DEBUG] Player animation after play:', this.player.anims.currentAnim && this.player.anims.currentAnim.key);
+        console.log('[DEBUG] Player animation frame:', this.player.anims.currentFrame && this.player.anims.currentFrame.index);
+        console.log('[DEBUG] Player alpha:', this.player.alpha);
+        // Now set up camera follow after all player setup
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        // Force camera to center on player
+        this.cameras.main.scrollX = this.player.x - this.cameras.main.width / 2;
+        this.cameras.main.scrollY = this.player.y - this.cameras.main.height / 2;
+        console.log('[DEBUG] Camera forcibly centered on player:', this.cameras.main.scrollX, this.cameras.main.scrollY);
+        console.log('[DEBUG] Camera follow target (after force):', this.cameras.main.followTarget);
+        console.log('[DEBUG] Camera world view:', this.cameras.main.worldView);
+        
+        // Immediately remove test players and fallback rectangles
+        if (this.playerFallback) this.playerFallback.destroy();
+        if (this.testPlayer) this.testPlayer.destroy();
+        if (this.testSprite) this.testSprite.destroy();
+        
+        // Add collision between player and platforms
         this.physics.add.collider(this.player, this.platforms, this.handlePlatformCollision, null, this);
         
-        console.log('[DEBUG] Physics collider set up between player and platforms');
-        console.log('[DEBUG] Total platforms in group:', this.platforms.getChildren().length);
-        
-        // Position player exactly on top of the starting platform AFTER collider setup
-        // Platform is at (250, 450) with height 30, so platform top is at Y=450
-        // Player height is 60, so player bottom should be at Y=450, meaning player Y should be 450-60=390
-        this.player.setPosition(250, 390); // Player bottom at Y=450 (platform top)
-        console.log('[DEBUG] Player positioned at (250, 390) after collider setup');
-        
-        // Debug: Show platform collision boxes
-        this.platforms.getChildren().forEach((platform, index) => {
-            console.log(`[DEBUG] Platform ${index} collision box: (${platform.x}, ${platform.y}) ${platform.body.width}x${platform.body.height}`);
-        });
-        
-        // Add overlap detection for resource collection
+        // Add overlap detection between player and resources
         this.physics.add.overlap(this.player, this.resources, this.collectResource, null, this);
-    
-        // Create UI elements that stay fixed on screen
-        this.scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '28px', fill: '#fff' })
-            .setScrollFactor(0)
-            .setDepth(10);
-        this.livesText = this.add.text(16, 48, `Lives: ${this.lives}`, { fontSize: '28px', fill: '#fff' })
-            .setScrollFactor(0)
-            .setDepth(10);
 
-        // Add resource icons and display - all fixed on screen
-        this.add.image(16, 80, 'iron').setScale(0.05).setScrollFactor(0).setDepth(10); // Match collectible scale
-        this.add.image(16, 110, 'resource_ice_orb').setScale(0.05).setScrollFactor(0).setDepth(10); // Use ice orb asset for UI
-        this.add.image(16, 140, 'energy_icon').setScale(0.5).setScrollFactor(0).setDepth(10);
+        // Create visual effects for cat colonist (since we're using single image for now)
+        this.createCatEffects();
         
-        this.ironText = this.add.text(50, 70, `Iron: ${window.SHARED.resources.stone}`, { fontSize: '20px', fill: '#fff' })
-            .setScrollFactor(0)
-            .setDepth(10);
-        this.iceText = this.add.text(50, 100, `Ice: ${window.SHARED.resources.ice}`, { fontSize: '20px', fill: '#fff' })
-            .setScrollFactor(0)
-            .setDepth(10);
-        this.energyText = this.add.text(50, 130, `Energy: ${window.SHARED.resources.energy}`, { fontSize: '20px', fill: '#fff' })
-            .setScrollFactor(0)
-            .setDepth(10);
+        // Start with normal state
+        // this.player.setTint(0xffffff); // Normal color - removed to preserve spritesheet colors
 
-        // Add progress bar for terraforming - fixed on screen
-        this.progressBar = this.add.image(400, 30, 'progress_bar').setScale(0.3).setScrollFactor(0).setDepth(10);
-        this.terraformingText = this.add.text(400, 20, `Terraforming: ${window.SHARED.terraforming || 0}%`, { 
-            fontSize: '16px', 
-            fill: '#fff' 
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(10);
-
-        // Add decorative elements - fixed on screen
-        this.add.image(750, 50, 'rover').setScale(0.3).setScrollFactor(0).setDepth(10);
-        this.add.image(750, 100, 'solar_panel').setScale(0.3).setScrollFactor(0).setDepth(10);
-        this.add.image(750, 150, 'habitat').setScale(0.3).setScrollFactor(0).setDepth(10);
-    
         this.cursors = this.input.keyboard.createCursorKeys();
         this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     
         this.cameras.main.setBounds(0, 0, 4000, 600);
-        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        this.cameras.main.setZoom(1.0);
+        this.cameras.main.setBackgroundColor(0x87CEEB); // Sky blue background
         this.physics.world.setBounds(0, 0, 4000, 600, false, false, false, false);
+        
+        // Debug camera settings
+        console.log('[DEBUG] Camera bounds:', this.cameras.main.getBounds());
+        console.log('[DEBUG] Camera scroll:', this.cameras.main.scrollX, this.cameras.main.scrollY);
+        console.log('[DEBUG] Camera zoom:', this.cameras.main.zoom);
+        console.log('[DEBUG] Camera following player:', this.cameras.main.followTarget);
+        
+        // Ensure camera is following player properly
+        if (this.cameras.main.followTarget !== this.player) {
+            console.log('[DEBUG] Re-establishing camera follow');
+            this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        }
 
         this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
         this.spaceWasDown = false;
@@ -199,31 +242,102 @@ class GameScene extends Phaser.Scene {
             }
         }, null, this);        
     
-        this.player.setData('onPlatform', true);
-        this.player.setData('jumping', false);
-        this.player.setData('doubleJumpAvailable', true);
+        // Add Catcrete resource icon and display
+        const catcreteIcon = this.add.image(16, 80, 'icon_catcrete').setScale(1.0).setScrollFactor(0).setDepth(10);
+        this.catcreteText = this.add.text(50, 70, `Catcrete: ${window.SHARED.resources.stone}`, { 
+            fontSize: '20px', 
+            fill: '#fff',
+            fontStyle: 'bold',
+            stroke: '#000',
+            strokeThickness: 2
+        }).setScrollFactor(0).setDepth(10);
+        // Add Fish-Ice resource icon and display
+        const fishiceIcon = this.add.image(16, 110, 'icon_fishice').setScale(1.0).setScrollFactor(0).setDepth(10);
+        this.fishiceText = this.add.text(50, 100, `Fish-Ice: ${window.SHARED.resources.ice}`, { 
+            fontSize: '20px', 
+            fill: '#fff',
+            fontStyle: 'bold',
+            stroke: '#000',
+            strokeThickness: 2
+        }).setScrollFactor(0).setDepth(10);
+        // Add Solar Purr resource icon and display
+        const solarpurrIcon = this.add.image(16, 140, 'icon_solarpurr').setScale(1.0).setScrollFactor(0).setDepth(10);
+        this.energyText = this.add.text(50, 130, `Solar Purr: ${window.SHARED.resources.energy}`, { 
+            fontSize: '20px', 
+            fill: '#fff',
+            fontStyle: 'bold',
+            stroke: '#000',
+            strokeThickness: 2
+        }).setScrollFactor(0).setDepth(10);
+        
+        // Add Iron text (for legacy compatibility)
+        this.ironText = this.add.text(50, 70, `Iron: ${window.SHARED.resources.stone}`, { 
+            fontSize: '20px', 
+            fill: '#fff',
+            fontStyle: 'bold',
+            stroke: '#000',
+            strokeThickness: 2
+        }).setScrollFactor(0).setDepth(10);
+        
+        // Add Score display
+        this.scoreText = this.add.text(16, 16, `Score: ${this.score}`, { 
+            fontSize: '24px', 
+            fill: '#fff',
+            fontStyle: 'bold',
+            stroke: '#000',
+            strokeThickness: 3
+        }).setScrollFactor(0).setDepth(10);
+        
+        // Add Lives display
+        this.livesText = this.add.text(16, 50, `Lives: ${this.lives}`, { 
+            fontSize: '20px', 
+            fill: '#fff',
+            fontStyle: 'bold',
+            stroke: '#000',
+            strokeThickness: 2
+        }).setScrollFactor(0).setDepth(10);
+        
+        // Add Terraforming progress display
+        this.terraformingText = this.add.text(width - 16, 4, `Terraforming: ${window.SHARED.progress.terraforming || 0}%`, { 
+            fontSize: '20px', 
+            fill: '#fff',
+            fontStyle: 'bold',
+            stroke: '#000',
+            strokeThickness: 2
+        }).setScrollFactor(0).setDepth(10).setOrigin(1, 0);
+
+        // Create animations for cat colonist
+        this.createCatAnimations();
+        
+        // Start with idle animation
+        this.player.play('cat_idle'); // Enable animation
+        // Log animation state
+        console.log('[DEBUG] Player animation after play:', this.player.anims.currentAnim && this.player.anims.currentAnim.key);
+        console.log('[DEBUG] Player animation frame:', this.player.anims.currentFrame && this.player.anims.currentFrame.index);
+        console.log('[DEBUG] Player alpha:', this.player.alpha);
+        console.log('[DEBUG] Camera follow target:', this.cameras.main.followTarget);
     }
-    
+
     // Helper method to create platforms with proper collision boxes
     createPlatform(x, y) {
-        // Create a visible platform using graphics instead of a texture
-        const platform = this.add.rectangle(x, y, 200, 20, 0x8B4513); // Brown rectangle
-        this.platforms.add(platform); // Add to the physics group
+        const platformWidth = this.getPlatformWidth();
+        const platform = this.add.rectangle(x, y, platformWidth, 30, 0x8B4513);
+        this.platforms.add(platform);
         
-        // Set up the physics body
-        this.physics.add.existing(platform, true); // `true` for a static body
+        // Manually set up the physics body for the rectangle
+        this.physics.add.existing(platform, true);
+        platform.body.setSize(platformWidth, 30);
+        platform.body.setOffset(0, 0);
+        platform.body.immovable = true;
         platform.body.allowGravity = false;
-        
-        // Increment platform counter for level completion tracking
-        this.platformsPlaced++;
-        
+
         return platform;
     }
     
     // Helper method to get the actual platform width for spacing calculations
     getPlatformWidth() {
-        // Platforms are 200 pixels wide
-        return 200;
+        // Platform width decreases as level increases to make it harder
+        return Math.max(100, 200 - (window.SHARED.progress.level - 1) * 15);
     }
     
     generateFixedPlatformPattern() {
@@ -240,6 +354,7 @@ class GameScene extends Phaser.Scene {
         if (platformCount === 0) {
             const startPlatform = this.createPlatform(250, 450);
             this.addResourceToPlatform(startPlatform);
+            this.platformsPlaced++;
             return startPlatform;
         }
         
@@ -250,24 +365,36 @@ class GameScene extends Phaser.Scene {
             return null;
         }
         
-        // Simple platform placement logic
+        // Enhanced platform placement logic with better balance
         const PLATFORM_WIDTH = 200;
         const MIN_GAP = 120;
         const MAX_GAP = 180;
         const Y_LEVELS = [250, 350, 450];
         
-        // Calculate new platform position
-        const gap = Phaser.Math.Between(MIN_GAP, MAX_GAP);
+        // Calculate new platform position with better spacing
+        let gap = Phaser.Math.Between(MIN_GAP, MAX_GAP);
+        
+        // Add variety: occasional larger gaps for challenge
+        if (platformCount % 5 === 0 && platformCount > 5) {
+            gap = Phaser.Math.Between(160, 200);
+        }
+        
         const newX = rightmostPlatform.x + gap;
         
-        // Choose Y level - alternate between levels for variety
+        // Smart Y level selection based on previous platform
         let newY;
-        if (platformCount % 3 === 0) {
-            newY = 250; // High level
-        } else if (platformCount % 3 === 1) {
-            newY = 350; // Mid level
-        } else {
-            newY = 450; // Low level
+        const lastY = rightmostPlatform.y;
+        
+        // Avoid impossible jumps by considering the previous platform
+        if (lastY === 450) { // Last platform was low
+            // Prefer mid or high level, avoid staying low
+            newY = platformCount % 2 === 0 ? 350 : 250;
+        } else if (lastY === 250) { // Last platform was high
+            // Prefer mid or low level, avoid staying high
+            newY = platformCount % 2 === 0 ? 350 : 450;
+        } else { // Last platform was mid
+            // Mix it up
+            newY = Y_LEVELS[platformCount % 3];
         }
         
         // Check if the jump is reachable
@@ -304,18 +431,21 @@ class GameScene extends Phaser.Scene {
                 console.log(`[DEBUG] Placing platform at (${adjustedX}, ${adjustedY}) - adjusted for reachability`);
                 const platform = this.createPlatform(adjustedX, adjustedY);
                 this.addResourceToPlatform(platform);
+                this.platformsPlaced++;
                 return platform;
             }
             
             console.log(`[DEBUG] Placing platform at (${newX}, ${adjustedY}) - adjusted Y for reachability`);
             const platform = this.createPlatform(newX, adjustedY);
             this.addResourceToPlatform(platform);
+            this.platformsPlaced++;
             return platform;
         }
         
         console.log(`[DEBUG] Placing platform at (${newX}, ${newY})`);
         const platform = this.createPlatform(newX, newY);
         this.addResourceToPlatform(platform);
+        this.platformsPlaced++;
         return platform;
     }
 
@@ -383,26 +513,22 @@ class GameScene extends Phaser.Scene {
         const newScore = Math.floor(this.player.x / 10);
         if (newScore > this.score) {
             this.score = newScore;
-            this.scoreText.setText(`Score: ${this.score}`);
+            if (this.scoreText) this.scoreText.setText(`Score: ${this.score}`);
         }
-
+    
         // Update resource displays to stay current
-        this.ironText.setText(`Iron: ${window.SHARED.resources.stone}`);
-        this.iceText.setText(`Ice: ${window.SHARED.resources.ice}`);
-        this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
-        this.terraformingText.setText(`Terraforming: ${window.SHARED.terraforming || 0}%`);
+        if (this.ironText) this.ironText.setText(`Iron: ${window.SHARED.resources.stone}`);
+        if (this.fishiceText) this.fishiceText.setText(`Fish-Ice: ${window.SHARED.resources.ice}`);
+        if (this.energyText) this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
+        if (this.terraformingText) this.terraformingText.setText(`Terraforming: ${window.SHARED.progress.terraforming || 0}%`);
+        if (this.catcreteText) this.catcreteText.setText(`Catcrete: ${window.SHARED.resources.stone}`);
 
         // Platform spawning logic - generate new platforms as player progresses
-        if (!this.levelCompleted) {
+        if (!this.levelCompleted && !this.levelEndPlatformCreated) {
             const rightmostPlatform = this.getRightmostPlatform();
             if (rightmostPlatform && this.player.x > rightmostPlatform.x - 200) {
                 // Spawn new platform when player is getting close to the rightmost platform
-                const newPlatform = this.generateFixedPlatformPattern();
-                if (newPlatform) {
-                    console.log('[DEBUG] New platform successfully placed at:', newPlatform.x, newPlatform.y);
-                } else {
-                    console.warn('[WARNING] Failed to place new platform');
-                }
+                this.generateFixedPlatformPattern();
             }
         }
 
@@ -442,17 +568,68 @@ class GameScene extends Phaser.Scene {
     
         // Check if player fell below screen and trigger loseLife()
         if (this.player.y >= 570 && !this.gameOver && !this.levelCompleted) {
+            // Add screen shake effect
+            this.cameras.main.shake(500, 0.02);
             this.loseLife();
         }
 
         // Check for level completion
         this.checkLevelCompletion();
+
+        // Animation logic for cat colonist
+        const playerOnGround = this.player.body.touching.down || this.player.body.blocked.down;
+        let currentState = 'idle';
+        
+        if (playerOnGround) {
+            if (Math.abs(this.player.body.velocity.x) > 10) {
+                // Walking
+                currentState = 'walk';
+                if (this.player.anims.currentAnim?.key !== 'cat_walk') {
+                    this.player.play('cat_walk', true);
+                }
+            } else {
+                // Idle
+                currentState = 'idle';
+                if (this.player.anims.currentAnim?.key !== 'cat_idle') {
+                    this.player.play('cat_idle', true);
+                }
+            }
+        } else {
+            // Jumping/Falling
+            currentState = 'jump';
+            if (this.player.anims.currentAnim?.key !== 'cat_jump') {
+                this.player.play('cat_jump', true);
+            }
+        }
+        
+        // Ensure player is always visible
+        this.player.setVisible(true);
+        
+        // Update state tracking with delay to prevent rapid changes
+        const lastState = this.player.getData('lastState');
+        const lastStateTime = this.player.getData('lastStateTime') || 0;
+        const currentTime = this.time.now;
+        
+        if (currentState !== lastState && (currentTime - lastStateTime) > 100) {
+            this.player.setData('lastState', currentState);
+            this.player.setData('currentState', currentState);
+            this.player.setData('lastStateTime', currentTime);
+            console.log(`[DEBUG] Cat state changed from ${lastState} to ${currentState}`);
+        }
+        
+        // Robust resource UI updates
+        if (this.catcreteText) this.catcreteText.setText(`Catcrete: ${window.SHARED.resources.stone}`);
+        if (this.fishiceText) this.fishiceText.setText(`Fish-Ice: ${window.SHARED.resources.ice}`);
+        if (this.energyText) this.energyText.setText(`Solar Purr: ${window.SHARED.resources.energy}`);
+        if (this.terraformingText) this.terraformingText.setText(`Terraforming: ${window.SHARED.progress.terraforming || 0}%`);
+        if (this.livesText) this.livesText.setText(`Lives: ${this.lives}`);
+        if (this.scoreText) this.scoreText.setText(`Score: ${this.score}`);
     }
     
     checkLevelCompletion() {
         // Level is complete when player reaches the level end platform
         // Create level end platform after a certain number of platforms (scales with level)
-        const targetPlatformCount = 20 + (window.SHARED.level - 1);
+        const targetPlatformCount = 10 + (window.SHARED.progress.level - 1);
         
         if (this.platformsPlaced >= targetPlatformCount && !this.levelEndPlatformCreated) {
             this.createLevelEndPlatform();
@@ -461,7 +638,7 @@ class GameScene extends Phaser.Scene {
         // Check if player has reached the level end platform
         if (this.levelEndPlatform && this.player && !this.levelCompleted) {
             const distanceToEnd = Math.abs(this.player.x - this.levelEndPlatform.x);
-            if (distanceToEnd < 50) { // Player is close to the end platform
+            if (distanceToEnd < 50) {
                 this.levelCompleted = true;
                 this.completeLevel();
             }
@@ -469,35 +646,44 @@ class GameScene extends Phaser.Scene {
     }
 
     createLevelEndPlatform() {
-        // Get the rightmost platform to place the end platform after it
         const rightmostPlatform = this.getRightmostPlatform();
-        if (!rightmostPlatform) {
-            console.warn('[WARNING] No rightmost platform found for level end platform');
-            return;
-        }
-        
-        // Create the level end platform
-        const endX = rightmostPlatform.x + 150; // 150px after the last platform
-        const endY = 350; // Mid level for easy access
-        
-        this.levelEndPlatform = this.add.rectangle(endX, endY, 200, 20, 0x00ff00); // Green platform
+        if (!rightmostPlatform) return;
+        const endX = rightmostPlatform.x + 200;
+        const endY = 300;
+        // Create a special green rectangle as the end platform
+        this.levelEndPlatform = this.add.rectangle(endX, endY, 200, 20, 0x00ff00);
         this.platforms.add(this.levelEndPlatform);
         this.physics.add.existing(this.levelEndPlatform, true);
         this.levelEndPlatform.body.allowGravity = false;
-        
-        // Add "ENTER TO NEXT LEVEL" text
-        this.levelEndText = this.add.text(endX, endY - 40, 'ENTER TO NEXT LEVEL', {
-            fontSize: '16px',
-            fill: '#00ff00',
-            fontStyle: 'bold'
+        // Add pulsing animation
+        this.tweens.add({
+            targets: this.levelEndPlatform,
+            scaleX: 1.05,
+            scaleY: 1.05,
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        // Add a clear label above the platform
+        this.levelEndText = this.add.text(endX, endY - 40, 'LEVEL COMPLETE!\nJump on this platform', {
+            fontSize: '20px',
+            color: '#00ff00',
+            fontStyle: 'bold',
+            stroke: '#000',
+            strokeThickness: 3,
+            align: 'center'
         }).setOrigin(0.5);
-        
-        // Add a collectible resource on the end platform
-        this.addResourceToPlatform(this.levelEndPlatform);
-        
         this.levelEndPlatformCreated = true;
-        
-        console.log(`[DEBUG] Level end platform created at (${endX}, ${endY})`);
+        // Log finish platform and player info
+        const cam = this.cameras.main;
+        const inView = (endX >= cam.scrollX && endX <= cam.scrollX + cam.width && endY >= cam.scrollY && endY <= cam.scrollY + cam.height);
+        console.log(`[LEVEL END] Finish platform created at X: ${endX}, Y: ${endY}, in camera view: ${inView}`);
+        console.log(`[LEVEL END] Player position at finish platform creation: X: ${this.player.x}, Y: ${this.player.y}`);
+        // Dynamically extend world and camera bounds so the end platform is reachable
+        const newWorldWidth = endX + 400; // Add extra space after the end platform
+        this.physics.world.setBounds(0, 0, newWorldWidth, this.physics.world.bounds.height);
+        this.cameras.main.setBounds(0, 0, newWorldWidth, this.cameras.main.height);
     }
 
     completeLevel() {
@@ -512,7 +698,7 @@ class GameScene extends Phaser.Scene {
         const levelData = {
             resourcesCollected: resourcesCollected,
             livesRemaining: this.lives,
-            level: window.SHARED.level,
+            level: window.SHARED.progress.level,
             score: this.score
         };
         
@@ -522,7 +708,7 @@ class GameScene extends Phaser.Scene {
         this.gameOver = true;
         this.scene.start('LevelComplete', levelData);
     }
-    
+
     loseLife() {
         // Don't call loseLife if game is already over or level is completed
         if (this.gameOver || this.levelCompleted) {
@@ -530,16 +716,20 @@ class GameScene extends Phaser.Scene {
         }
     
         this.lives--;
-        this.livesText.setText(`Lives: ${this.lives}`);
+        window.SHARED.lives = this.lives; // Update shared lives value
+        if (this.livesText) this.livesText.setText(`Lives: ${this.lives}`);
     
         if (this.lives <= 0) {
             this.gameOver = true;
             this.player.body.enable = false;
             this.player.setVisible(false);
             localStorage.setItem('lastLifeLostAt', Date.now().toString());
-            this.scene.start('GameOver', { score: this.score });
+            this.scene.start('GameOver', { resources: window.SHARED.resources });
         } else {
-            this.scene.start('LifeLost', { lives: this.lives });
+            this.scene.start('LifeLost', { 
+                lives: this.lives,
+                resources: window.SHARED.resources 
+            });
         }
     }
 
@@ -548,12 +738,12 @@ class GameScene extends Phaser.Scene {
         this.player.setPosition(this.startX, this.startY);
         
         // Clear all velocity
-        this.player.setVelocity(0, 0);
+            this.player.setVelocity(0, 0);
         
         // Reset jump flags
-        this.player.setData('onPlatform', true);
-        this.player.setData('jumping', false);
-        this.player.setData('doubleJumpAvailable', true);
+            this.player.setData('onPlatform', true);
+            this.player.setData('jumping', false);
+            this.player.setData('doubleJumpAvailable', true);
         
         // Ensure physics body is enabled and visible
         this.player.body.enable = true;
@@ -569,7 +759,7 @@ class GameScene extends Phaser.Scene {
         
         // Refresh lives display to ensure it's current
         this.lives = window.SHARED.lives;
-        this.livesText.setText(`Lives: ${this.lives}`);
+        if (this.livesText) this.livesText.setText(`Lives: ${this.lives}`);
         
         // Reset level completion state
         this.levelCompleted = false;
@@ -582,7 +772,7 @@ class GameScene extends Phaser.Scene {
         }
         
         // Update auto speed based on current level
-        this.autoSpeed = 150 + (window.SHARED.level - 1) * 20;
+        this.autoSpeed = 150 + (window.SHARED.progress.level - 1) * 20;
         
         // Track initial resources for the new level
         this.initialResources = {
@@ -591,7 +781,7 @@ class GameScene extends Phaser.Scene {
             energy: window.SHARED.resources.energy
         };
         
-        console.log(`[DEBUG] Waking up for level ${window.SHARED.level} with speed ${this.autoSpeed}`);
+        console.log(`[DEBUG] Waking up for level ${window.SHARED.progress.level} with speed ${this.autoSpeed}`);
     }
 
     endGame() {
@@ -599,20 +789,20 @@ class GameScene extends Phaser.Scene {
         const earned = Math.floor(this.score / 5);
         window.SHARED.resources.stone += earned;
         window.SHARED.resources.ice += Math.floor(earned / 2);
-        window.SHARED.terraforming += Math.min(1, 100 - window.SHARED.terraforming);
+        window.SHARED.progress.terraforming += Math.min(1, 100 - window.SHARED.progress.terraforming);
     
         // Update resource display
-        this.ironText.setText(`Iron: ${window.SHARED.resources.stone}`);
-        this.iceText.setText(`Ice: ${window.SHARED.resources.ice}`);
-        this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
-        this.terraformingText.setText(`Terraforming: ${window.SHARED.terraforming}%`);
+        if (this.ironText) this.ironText.setText(`Iron: ${window.SHARED.resources.stone}`);
+        if (this.fishiceText) this.fishiceText.setText(`Fish-Ice: ${window.SHARED.resources.ice}`);
+        if (this.energyText) this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
+        if (this.terraformingText) this.terraformingText.setText(`Terraforming: ${window.SHARED.progress.terraforming}%`);
     
         console.log('Game ended:', {
             finalScore: this.score,
             resourcesEarned: {
                 stone: earned,
                 ice: Math.floor(earned / 2),
-                terraforming: Math.min(1, 100 - window.SHARED.terraforming)
+                terraforming: Math.min(1, 100 - window.SHARED.progress.terraforming)
             }
         });
     
@@ -620,19 +810,11 @@ class GameScene extends Phaser.Scene {
     }
 
     handlePlatformCollision(player, platform) {
-        // Check if player is landing on platform (moving downward)
+        console.log('[DEBUG] handlePlatformCollision fired');
         if (player.body.velocity.y > 0) {
-            // Reset all jump flags consistently
             player.setData('onPlatform', true);
             player.setData('jumping', false);
             player.setData('doubleJumpAvailable', true);
-            
-            // Additional safety check to ensure flags are set correctly
-            if (!player.getData('onPlatform') || player.getData('jumping') || !player.getData('doubleJumpAvailable')) {
-                player.setData('onPlatform', true);
-                player.setData('jumping', false);
-                player.setData('doubleJumpAvailable', true);
-            }
         }
     }
 
@@ -647,14 +829,14 @@ class GameScene extends Phaser.Scene {
         if (resourceType === 'ice') {
             // Use the new ice orb asset with same scaling as iron
             resource = this.resources.create(resourceX, resourceY, 'resource_ice_orb');
-            resource.setScale(0.08); // Same scale as iron orbs
-            resource.body.setSize(resource.width * 0.08, resource.height * 0.08); // Match physics body to new size
+            resource.setScale(0.25); // Increased scale to make resources more visible
+            resource.body.setSize(resource.width * 0.25, resource.height * 0.25); // Match physics body to new size
             console.log('[DEBUG] Ice resource created at', resourceX, resourceY);
         } else if (resourceType === 'solar') {
             // Use the solar orb asset with proper scaling
             resource = this.resources.create(resourceX, resourceY, 'resource_solar_orb');
-            resource.setScale(0.08); // Same scale as other resources
-            resource.body.setSize(resource.width * 0.08, resource.height * 0.08); // Match physics body to new size
+            resource.setScale(0.25); // Increased scale to make resources more visible
+            resource.body.setSize(resource.width * 0.25, resource.height * 0.25); // Match physics body to new size
             console.log('[DEBUG] Solar resource created at', resourceX, resourceY);
         } else {
             // Handle iron and other resources with scaling
@@ -662,8 +844,8 @@ class GameScene extends Phaser.Scene {
             
             // Specific handling for different resources - scaling and physics body
             if (resourceType === 'iron') {
-                resource.setScale(0.08); // Reduced from 0.15 to make iron orbs smaller
-                resource.body.setSize(resource.width * 0.08, resource.height * 0.08); // Match physics body to new size
+                resource.setScale(0.25); // Increased scale to make iron orbs more visible
+                resource.body.setSize(resource.width * 0.25, resource.height * 0.25); // Match physics body to new size
             } else {
                 // Assuming other resources are sized correctly
                 resource.body.setSize(resource.width, resource.height);
@@ -694,22 +876,132 @@ class GameScene extends Phaser.Scene {
         // Destroy the resource
         resource.destroy();
         
-        // Increase score
+        // Increase score with visual feedback
         this.score += 10;
-        this.scoreText.setText(`Score: ${this.score}`);
+        if (this.scoreText) this.scoreText.setText(`Score: ${this.score}`);
+        
+        // Animate score text
+        if (this.scoreText) {
+            this.tweens.add({
+                targets: this.scoreText,
+                scaleX: 1.2,
+                scaleY: 1.2,
+                duration: 200,
+                yoyo: true,
+                ease: 'Power2'
+            });
+        }
         
         // Update shared resources based on type
         if (resourceType === 'iron') {
             window.SHARED.resources.stone += 1;
-            this.ironText.setText(`Iron: ${window.SHARED.resources.stone}`);
+            if (this.ironText) this.ironText.setText(`Iron: ${window.SHARED.resources.stone}`);
+            // Animate iron text
+            if (this.ironText) {
+                this.tweens.add({
+                    targets: this.ironText,
+                    scaleX: 1.1,
+                    scaleY: 1.1,
+                    duration: 200,
+                    yoyo: true,
+                    ease: 'Power2'
+                });
+            }
         } else if (resourceType === 'ice') {
             window.SHARED.resources.ice += 1;
-            this.iceText.setText(`Ice: ${window.SHARED.resources.ice}`);
+            if (this.fishiceText) this.fishiceText.setText(`Fish-Ice: ${window.SHARED.resources.ice}`);
+            // Animate ice text
+            if (this.fishiceText) {
+                this.tweens.add({
+                    targets: this.fishiceText,
+                    scaleX: 1.1,
+                    scaleY: 1.1,
+                    duration: 200,
+                    yoyo: true,
+                    ease: 'Power2'
+                });
+            }
         } else if (resourceType === 'solar') {
             window.SHARED.resources.energy += 1;
-            this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
+            if (this.energyText) this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
+            // Animate energy text
+            if (this.energyText) {
+                this.tweens.add({
+                    targets: this.energyText,
+                    scaleX: 1.1,
+                    scaleY: 1.1,
+                    duration: 200,
+                    yoyo: true,
+                    ease: 'Power2'
+                });
+            }
         }
         
         console.log(`[DEBUG] Collected ${resourceType} resource! Score: ${this.score}`);
+    }
+
+    createCatEffects() {
+        // Create visual effects for cat colonist (since we're using single image for now)
+        console.log('[DEBUG] Cat effects system initialized');
+        
+        // Set initial state
+        this.player.setData('currentState', 'idle');
+        this.player.setData('lastState', 'idle');
+    }
+
+    // Create animations for cat colonist
+    createCatAnimations() {
+        console.log('[DEBUG] Creating cat colonist animations...');
+        
+        // Check if spritesheet exists for animations
+        if (this.textures.exists('cat_colonist_new')) {
+            // Create idle animation using all 4 frames
+            this.anims.create({
+                key: 'cat_idle',
+                frames: this.anims.generateFrameNumbers('cat_colonist_new', { start: 0, end: 3 }),
+                frameRate: 4,
+                repeat: -1
+            });
+
+            // Create walk animation using frames 0-3
+            this.anims.create({
+                key: 'cat_walk',
+                frames: this.anims.generateFrameNumbers('cat_colonist_new', { start: 0, end: 3 }),
+                frameRate: 6,
+                repeat: -1
+            });
+
+            // Create jump animation using frame 2
+            this.anims.create({
+                key: 'cat_jump',
+                frames: [{ key: 'cat_colonist_new', frame: 2 }],
+                frameRate: 1,
+                repeat: -1
+            });
+        } else {
+            // Fallback animations using single image
+            this.anims.create({
+                key: 'cat_idle',
+                frames: [{ key: 'cat_colonist_single' }],
+                frameRate: 1,
+                repeat: -1
+            });
+
+            this.anims.create({
+                key: 'cat_walk',
+                frames: [{ key: 'cat_colonist_single' }],
+                frameRate: 6,
+                repeat: -1
+            });
+
+            this.anims.create({
+                key: 'cat_jump',
+                frames: [{ key: 'cat_colonist_single' }],
+                frameRate: 1,
+                repeat: -1
+            });
+        }
+        
+        console.log('[DEBUG] Cat colonist animations created successfully');
     }
 }

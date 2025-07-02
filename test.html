@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Cat Colony</title>
+    <style>
+        body { 
+            margin: 0; 
+            background: #111; 
+            overflow: hidden; 
+            font-family: Arial, sans-serif;
+        }
+        #game-container { 
+            width: 100vw; 
+            height: 100vh; 
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+    <div class="loading" id="loading">Loading Test...</div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.js"></script>
+    <script>
+        // Simple test scene
+        class TestScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'TestScene' });
+            }
+
+            preload() {
+                this.load.image('cat_colonist', 'assets/cat_colonist.png');
+                this.load.image('cat_colonist_frame1', 'assets/cat_colonist_frame1_fixed.png');
+                this.load.image('game_bg', 'assets/game_bg.png');
+            }
+
+            create() {
+                // Add background
+                this.add.image(0, 0, 'game_bg').setOrigin(0, 0).setDisplaySize(1200, 800);
+                
+                // Test player creation
+                this.player = this.physics.add.sprite(600, 400, 'cat_colonist');
+                this.player.setScale(0.5);
+                this.player.setDepth(100);
+                this.player.setTint(0xffffff);
+                
+                console.log('Player created:', this.player);
+                console.log('Player visible:', this.player.visible);
+                console.log('Player texture:', this.player.texture.key);
+                console.log('Player scale:', this.player.scale);
+                console.log('Player depth:', this.player.depth);
+                
+                // Add some text
+                this.add.text(16, 16, 'Test Scene - Player should be visible', {
+                    fontSize: '24px',
+                    fill: '#fff',
+                    stroke: '#000',
+                    strokeThickness: 3
+                });
+                
+                // Hide loading
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Test configuration
+        const config = {
+            type: Phaser.AUTO,
+            width: 1200,
+            height: 800,
+            parent: 'game-container',
+            backgroundColor: '#1a1a2e',
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 800 },
+                    debug: false
+                }
+            },
+            scene: [TestScene]
+        };
+
+        const game = new Phaser.Game(config);
+    </script>
+</body>
+</html> 

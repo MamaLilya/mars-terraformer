@@ -1,0 +1,43 @@
+{
+  "name": "cat-colony-mars-terraformation",
+  "version": "1.0.0",
+  "description": "A cat-themed Mars colonization platformer game built with Phaser 3",
+  "main": "main.js",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "dev": "python -m http.server 8000",
+    "serve": "python -m http.server 8000",
+    "build": "echo 'No build process needed for this project'",
+    "test": "echo 'No tests specified'",
+    "lint": "echo 'No linter configured'"
+  },
+  "keywords": [
+    "game",
+    "phaser",
+    "platformer",
+    "mars",
+    "cats",
+    "space",
+    "terraformation"
+  ],
+  "author": "Cat Colony Development Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/cat-colony-mars-terraformation.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/cat-colony-mars-terraformation/issues"
+  },
+  "homepage": "https://github.com/yourusername/cat-colony-mars-terraformation#readme",
+  "devDependencies": {},
+  "dependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
+} 
