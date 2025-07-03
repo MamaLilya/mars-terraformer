@@ -12,11 +12,11 @@ class LevelComplete extends Phaser.Scene {
         // Load cat-themed resource icons
         this.load.image('icon_catcrete', 'assets/icon_catcrete.png');
         this.load.image('icon_fishice', 'assets/icon_fishice.png');
-        this.load.image('icon_solarpurr', 'assets/icon_solarpurr.png');
+        this.load.image('icon_solarpurr', 'assets/icon_solarpurr_original.png');
         // Fallback to old icons if new ones don't exist
         this.load.image('resource_iron_orb', 'assets/resource_iron_orb.png');
         this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png');
-        this.load.image('resource_solar_orb', 'assets/resource_solar_orb.png');
+        this.load.image('resource_solar_orb', 'assets/icon_solarpurr_original.png');
     }
 
     create(data) {
@@ -24,7 +24,7 @@ class LevelComplete extends Phaser.Scene {
         
         // Get data passed from GameScene
         this.levelData = data || {};
-        this.resourcesCollected = this.levelData.resourcesCollected || { iron: 0, ice: 0, solar: 0 };
+        this.resourcesCollected = this.levelData.resourcesCollected || { iron: 0, ice: 0, energy: 0 };
         this.livesRemaining = this.levelData.livesRemaining || 3;
         this.currentLevel = this.levelData.level || 1;
         this.score = this.levelData.score || 0;
@@ -62,7 +62,7 @@ class LevelComplete extends Phaser.Scene {
         const resources = [
             { key: 'iron', icon: 'icon_catcrete', label: 'Catcrete', count: this.resourcesCollected.iron },
             { key: 'ice', icon: 'icon_fishice', label: 'Fish-Ice', count: this.resourcesCollected.ice },
-            { key: 'solar', icon: 'icon_solarpurr', label: 'Solar Purr', count: this.resourcesCollected.solar }
+            { key: 'energy', icon: 'icon_solarpurr', label: 'Energy', count: this.resourcesCollected.energy }
         ];
         
         resources.forEach((resource, index) => {

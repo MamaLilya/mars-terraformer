@@ -247,7 +247,7 @@ export class UIManager {
             this.texts.fishice.setText(`Fish-Ice: ${window.SHARED.resources.ice}`);
         }
         if (this.texts.energy) {
-            this.texts.energy.setText(`Solar Purr: ${window.SHARED.resources.energy}`);
+            this.texts.energy.setText(`Energy: ${window.SHARED.resources.energy}`);
         }
     }
 

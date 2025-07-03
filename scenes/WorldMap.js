@@ -60,13 +60,26 @@ export class WorldMap extends Phaser.Scene {
             { fontSize: '20px', backgroundColor: '#3498db' }
         );
 
+        // Check if rover bay is built before allowing Mars exploration
+        const hasRoverBay = window.SHARED.station && window.SHARED.station.buildings && window.SHARED.station.buildings.includes('rover_bay');
+        
         // Game Scene button
         this.uiManager.createNavButton(
             width * 0.7, 
             buttonY, 
-            '🚀 Explore Mars', 
-            () => this.scene.start('GameScene'),
-            { fontSize: '20px', backgroundColor: '#e74c3c' }
+            hasRoverBay ? '🚀 Explore Mars' : '🚀 Explore Mars (Locked)', 
+            () => {
+                if (hasRoverBay) {
+                    this.scene.start('GameScene');
+                } else {
+                    this.showRoverRequiredMessage();
+                }
+            },
+            { 
+                fontSize: '20px', 
+                backgroundColor: hasRoverBay ? '#e74c3c' : '#95a5a6',
+                color: hasRoverBay ? '#ffffff' : '#666666'
+            }
         );
 
         // Shop button
@@ -94,6 +107,14 @@ export class WorldMap extends Phaser.Scene {
             '← Back to Menu', 
             () => this.scene.start('MainMenu'),
             { fontSize: '18px', backgroundColor: '#7f8c8d' }
+        );
+    }
+
+    showRoverRequiredMessage() {
+        this.uiManager.createModal(
+            '🚀 Rover Required',
+            'You need to build a Rover Bay in your station before you can explore Mars.\n\nGo to the Station and build a Rover Bay first!',
+            [{ text: 'OK', onClick: () => {} }]
         );
     }
 

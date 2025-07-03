@@ -294,10 +294,10 @@ export class GameScene extends Phaser.Scene {
         let resource;
         if (this.nextResourceType === 'ice') {
             resource = this.resources.create(resourceX, resourceY, 'resource_ice_orb');
-        } else if (this.nextResourceType === 'solar') {
-            resource = this.resources.create(resourceX, resourceY, 'resource_solar_orb');
+        } else if (this.nextResourceType === 'energy') {
+            resource = this.resources.create(resourceX, resourceY, 'icon_solarpurr');
         } else {
-            resource = this.resources.create(resourceX, resourceY, 'iron');
+            resource = this.resources.create(resourceX, resourceY, 'resource_iron_orb');
         }
         
         resource.setScale(CONSTANTS.RESOURCES.SCALE);
@@ -310,7 +310,7 @@ export class GameScene extends Phaser.Scene {
         if (this.nextResourceType === 'iron') {
             this.nextResourceType = 'ice';
         } else if (this.nextResourceType === 'ice') {
-            this.nextResourceType = 'solar';
+            this.nextResourceType = 'energy';
         } else {
             this.nextResourceType = 'iron';
         }
@@ -331,7 +331,7 @@ export class GameScene extends Phaser.Scene {
         } else if (resourceType === 'ice') {
             window.SHARED.resources.ice += 1;
             this.resourceDisplays.fishice.updateValue(window.SHARED.resources.ice);
-        } else if (resourceType === 'solar') {
+        } else if (resourceType === 'energy') {
             window.SHARED.resources.energy += 1;
             this.resourceDisplays.energy.updateValue(window.SHARED.resources.energy);
         }
@@ -419,6 +419,9 @@ export class GameScene extends Phaser.Scene {
         window.SHARED.resources.ice += Math.floor(earned / 2);
         window.SHARED.progress.terraforming = Math.min(100, window.SHARED.progress.terraforming + 10);
         window.SHARED.progress.level++;
+        
+        // Increment missions completed for building unlocks
+        window.SHARED.progress.missions_completed++;
         
         this.scene.start('LevelComplete', { 
             score: this.score,

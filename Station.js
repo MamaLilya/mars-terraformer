@@ -10,64 +10,8 @@ class Station extends Phaser.Scene {
         this.tileWidth = 0;
         this.tileHeight = 0;
 
-        this.buildable = {
-            'solar_panel': {
-                name: 'Solar Panel',
-                description: 'Generates passive energy.',
-                cost: { stone: 10, ice: 5, energy: 0 },
-                upkeep: -2, // Negative upkeep = generation
-                unlock: {},
-                asset: 'solar_panel_unit'
-            },
-            'habitat': {
-                name: 'Station Hub',
-                description: 'The center of your new colony.',
-                cost: { stone: 100, ice: 50, energy: 20 },
-                upkeep: 2,
-                unlock: { missions_completed: 1 },
-                asset: 'station'
-            },
-            'living_quarters': {
-                name: 'Living Quarters',
-                description: 'Increases station build capacity.',
-                cost: { stone: 20, energy: 5 },
-                upkeep: 2,
-                unlock: { missions_completed: 1 },
-                asset: 'habitat' // Placeholder
-            },
-            'greenhouse': {
-                name: 'Greenhouse',
-                description: 'Grows food and improves atmosphere.',
-                cost: { stone: 10, ice: 5 },
-                upkeep: 2,
-                unlock: { terraforming: 20 },
-                asset: 'habitat' // Placeholder
-            },
-            'water_module': {
-                name: 'Water Module',
-                description: 'Extracts and recycles water.',
-                cost: { stone: 5, ice: 10 },
-                upkeep: 3,
-                unlock: { missions_completed: 2 },
-                asset: 'habitat' // Placeholder
-            },
-            'lab': {
-                name: 'Research Lab',
-                description: 'Unlocks new technologies.',
-                cost: { stone: 15, ice: 5, energy: 10 },
-                upkeep: 5,
-                unlock: { terraforming: 40 },
-                asset: 'habitat' // Placeholder
-            },
-            'rover_bay': {
-                name: 'Rover Bay',
-                description: 'Required to deploy the Mars Rover.',
-                cost: { stone: 50, ice: 20, energy: 15 },
-                upkeep: 1,
-                unlock: {},
-                asset: 'rover_unit'
-            }
-        };
+        // Use building definitions from global config
+        this.buildable = window.BUILDINGS;
 
         this.resourceTexts = {};
     }
@@ -77,12 +21,13 @@ class Station extends Phaser.Scene {
         this.load.image('station', 'assets/station_building.png');
         this.load.image('rover_unit', 'assets/rover_unit.png');
         this.load.image('solar_panel_unit', 'assets/solar_panel_unit.png');
+        this.load.image('habitat', 'assets/station_building.png');
         this.load.image('resource_iron_orb', 'assets/resource_iron_orb.png');
         this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png');
-        this.load.image('resource_solar_orb', 'assets/resource_solar_orb.png');
+        this.load.image('resource_solar_orb', 'assets/icon_solarpurr_original.png');
         this.load.image('icon_catcrete', 'assets/icon_catcrete.png');
         this.load.image('icon_fishice', 'assets/icon_fishice.png');
-        this.load.image('icon_solarpurr', 'assets/icon_solarpurr.png');
+        this.load.image('icon_solarpurr', 'assets/icon_solarpurr_original.png');
         this.load.image('ui/build_menu_frame', 'assets/ui/build_menu_frame.png');
         this.load.image('cat_white', 'assets/cat_white.png');
         this.load.image('cat_tuxedo', 'assets/cat_tuxedo.png');
@@ -94,6 +39,10 @@ class Station extends Phaser.Scene {
 
     create() {
         const { width, height } = this.scale;
+
+        // Ensure station and buildings array are always present
+        if (!window.SHARED.station) window.SHARED.station = {};
+        if (!Array.isArray(window.SHARED.station.buildings)) window.SHARED.station.buildings = [];
 
         const bg = this.add.image(0, 0, 'station_background_wide').setOrigin(0, 0).setScrollFactor(0);
         const scaleX = width / bg.width;
@@ -138,11 +87,31 @@ class Station extends Phaser.Scene {
         // --- Isometric Grid ---
         this.createIsometricGrid(contentArea, GRID_ROWS, GRID_COLS, this.tileWidth, this.tileHeight);
 
+        // --- Restore buildings from SHARED ---
+        window.SHARED.station.buildings.forEach(b => {
+            if (typeof b.x === 'number' && typeof b.y === 'number') {
+                this.placeBuildingSprite(b.type, b.x, b.y);
+            }
+        });
+
         // --- Navigation ---
         const navY = height - (footerSlice / 2);
         this.createNavButton(width * 0.2, navY, '< Back', () => this.scene.start('WorldMap'));
         this.createNavButton(width * 0.4, navY, 'Build 🏗️', () => this.toggleBuildMenu());
-        this.createNavButton(width * 0.6, navY, 'Explore Mars', () => this.showCatSelectWindow());
+        
+        // Check if rover bay is built before allowing Mars exploration
+        const hasRoverBay = window.SHARED.station.buildings.some(b => b.type === 'rover_bay');
+        this.exploreButton = this.createNavButton(width * 0.6, navY, hasRoverBay ? 'Explore Mars' : 'Explore Mars (Locked)', () => {
+            const currentBuildings = window.SHARED.station.buildings || [];
+            const hasRoverBayNow = currentBuildings.some(b => b.type === 'rover_bay');
+            console.log('[EXPLORE BUTTON] Clicked. Current station buildings:', currentBuildings);
+            if (hasRoverBayNow) {
+                this.showCatSelectWindow();
+            } else {
+                this.showRoverRequiredMessage();
+            }
+        });
+        
         this.cancelButton = this.createNavButton(width * 0.8, navY, 'Cancel Build', () => {
             this.exitBuildMode();
         }).setVisible(false);
@@ -223,13 +192,62 @@ class Station extends Phaser.Scene {
         const info = tile.getData('info');
         if (info.built || !this.buildingType) return;
 
+        const building = this.buildable[this.buildingType];
+        
+        console.log(`[BUILD] Attempting to build: ${building.name}`);
+        console.log(`[BUILD] Building cost:`, building.cost);
+        console.log(`[BUILD] Current resources before spending:`, {
+            stone: window.SHARED.resources.stone,
+            ice: window.SHARED.resources.ice,
+            energy: window.SHARED.resources.energy
+        });
+        
+        // Check if player can afford the building
+        const canAfford = Object.keys(building.cost).every(res => 
+            window.SHARED.resources[res] >= (building.cost[res] || 0)
+        );
+        
+        console.log(`[BUILD] Can afford building: ${canAfford}`);
+        
+        if (!canAfford) {
+            console.log(`[BUILD] ❌ Insufficient resources for ${building.name}`);
+            // Show insufficient resources message
+            this.showInsufficientResources();
+            return;
+        }
+
+        // Spend resources
+        console.log(`[BUILD] 💰 Spending resources for ${building.name}:`);
+        Object.keys(building.cost).forEach(res => {
+            const cost = building.cost[res] || 0;
+            const before = window.SHARED.resources[res];
+            window.SHARED.resources[res] -= cost;
+            const after = window.SHARED.resources[res];
+            console.log(`[BUILD]   ${res}: ${before} → ${after} (-${cost})`);
+        });
+        
+        console.log(`[BUILD] ✅ Resources after spending:`, {
+            stone: window.SHARED.resources.stone,
+            ice: window.SHARED.resources.ice,
+            energy: window.SHARED.resources.energy
+        });
+
         info.built = true;
         info.graphics.clear();
         tile.disableInteractive();
         
-        const buildingAsset = this.buildable[this.buildingType].asset || 'habitat';
+        const buildingAsset = building.asset || 'habitat';
         const yOffset = this.tileHeight / 2;
         const buildingImage = this.add.image(tile.x, tile.y + yOffset, buildingAsset).setScale(0).setOrigin(0.5, 1);
+        
+        // Make building clickable
+        buildingImage.setInteractive({ useHandCursor: true });
+        buildingImage.setData('buildingInfo', { type: this.buildingType, gridX: info.x, gridY: info.y, tile });
+        
+        // Add click handler for building context menu
+        buildingImage.on('pointerdown', () => {
+            this.showBuildingContextMenu(buildingImage, this.buildingType, info.x, info.y);
+        });
         
         this.tweens.add({
             targets: buildingImage,
@@ -238,8 +256,41 @@ class Station extends Phaser.Scene {
             ease: 'Back.Out'
         });
 
-        window.SHARED.station.buildings.push(this.buildingType);
+        // Save building with position and state
+        if (!window.SHARED.station.buildings) window.SHARED.station.buildings = [];
+        const gridX = info.x;
+        const gridY = info.y;
+        window.SHARED.station.buildings.push({ type: this.buildingType, x: gridX, y: gridY, state: 'built' });
+        
+        console.log(`[BUILD] 🎉 Successfully built: ${building.name} at position (${tile.x}, ${tile.y})`);
+        this.updateResourceDisplay();
+        this.updateExploreButton();
         this.exitBuildMode();
+        // Save to Firebase if logged in
+        if (window.SHARED.nickname && !window.SHARED.anonymous) {
+            window.firebaseDB.ref(`/players/${window.SHARED.nickname}/data`).set(window.SHARED);
+        }
+    }
+
+    showInsufficientResources() {
+        const { width, height } = this.scale;
+        const modal = this.add.container(width / 2, height / 2);
+        
+        const blocker = this.add.rectangle(0, 0, width, height, 0x000000, 0.7).setOrigin(0);
+        const frame = this.add.graphics().fillStyle(0x333333, 0.9).fillRoundedRect(-200, -100, 400, 200, 10);
+        const title = this.add.text(0, -60, '❌ Insufficient Resources', {
+            fontSize: '24px', color: '#ff6b6b', fontStyle: 'bold'
+        }).setOrigin(0.5);
+        const message = this.add.text(0, -20, 'You don\'t have enough resources\nto build this structure.', {
+            fontSize: '16px', color: '#ffffff', align: 'center'
+        }).setOrigin(0.5);
+        const okButton = this.add.text(0, 40, 'OK', {
+            fontSize: '18px', color: '#ffffff', backgroundColor: '#4a90e2', padding: { x: 20, y: 10 }
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        
+        this.addTweensForButton(okButton, () => modal.destroy());
+        
+        modal.add([blocker, frame, title, message, okButton]).setDepth(50);
     }
 
     toggleBuildMenu() {
@@ -329,10 +380,15 @@ class Station extends Phaser.Scene {
     
             if (buttonEnabled) {
                 this.addTweensForButton(buildButton, () => {
-                    Object.keys(building.cost).forEach(res => {
-                        window.SHARED.resources[res] -= (building.cost[res] || 0);
+                    console.log(`[BUILD MENU] 🏗️ Starting construction mode for: ${building.name}`);
+                    console.log(`[BUILD MENU] Building cost:`, building.cost);
+                    console.log(`[BUILD MENU] Current resources:`, {
+                        stone: window.SHARED.resources.stone,
+                        ice: window.SHARED.resources.ice,
+                        energy: window.SHARED.resources.energy
                     });
-                    this.updateResourceDisplay();
+                    console.log(`[BUILD MENU] 💡 Resources will be spent when placing on grid`);
+                    
                     this.enterBuildMode(key);
                 });
             }
@@ -366,8 +422,15 @@ class Station extends Phaser.Scene {
 
     enterBuildMode(buildingKey) {
         this.buildingType = buildingKey;
+        const building = this.buildable[buildingKey];
+        console.log(`[BUILD MODE] 🎯 Entered build mode for: ${building.name}`);
+        console.log(`[BUILD MODE] 📍 Click on grid to place building (cost: ${JSON.stringify(building.cost)})`);
+        
         this.closeBuildMenu();
-        this.cancelButton.setVisible(true);
+        
+        if (this.cancelButton) {
+            this.cancelButton.setVisible(true);
+        }
     
         if (!this.buildPromptText) {
             const { width, height } = this.scale;
@@ -384,8 +447,11 @@ class Station extends Phaser.Scene {
     }
 
     exitBuildMode() {
+        console.log(`[BUILD MODE] ❌ Exited build mode (no resources spent)`);
         this.buildingType = null;
-        this.cancelButton.setVisible(false);
+        if (this.cancelButton) {
+            this.cancelButton.setVisible(false);
+        }
         if (this.buildPromptText) {
             this.buildPromptText.setVisible(false);
         }
@@ -400,14 +466,41 @@ class Station extends Phaser.Scene {
     }
     
     updateResourceDisplay() {
+        console.log(`[UI] 📊 Updating resource display:`, {
+            stone: window.SHARED.resources.stone,
+            ice: window.SHARED.resources.ice,
+            energy: window.SHARED.resources.energy
+        });
         this.resourceTexts.stone.setText(window.SHARED.resources.stone);
         this.resourceTexts.ice.setText(window.SHARED.resources.ice);
         this.resourceTexts.energy.setText(window.SHARED.resources.energy);
     }
 
+    updateExploreButton() {
+        if (!this.exploreButton) return;
+        const buildings = window.SHARED.station.buildings || [];
+        const hasRoverBay = buildings.some(b => b.type === 'rover_bay');
+        console.log(`[UI] 🔍 Updating explore button - hasRoverBay: ${hasRoverBay}`);
+        console.log(`[UI] 📋 Current station buildings:`, buildings);
+        if (hasRoverBay) {
+            this.exploreButton.setText('Explore Mars');
+            console.log(`[UI] ✅ Explore Mars button unlocked!`);
+        } else {
+            this.exploreButton.setText('Explore Mars (Locked)');
+            console.log(`[UI] 🔒 Explore Mars button still locked`);
+        }
+    }
+
     createResourceDisplay(x, y, iconKey, value) {
         const container = this.add.container(x, y);
-        const icon = this.add.image(0, 0, iconKey).setScale(0.15).setOrigin(0.5);
+        // Different scales for different resource types
+        let iconScale = 0.15; // Default scale
+        if (iconKey === 'resource_solar_orb') {
+            iconScale = 0.05; // Smaller for energy
+        } else if (iconKey === 'resource_iron_orb' || iconKey === 'resource_ice_orb') {
+            iconScale = 0.2; // Bigger for stone and ice
+        }
+        const icon = this.add.image(0, 0, iconKey).setScale(iconScale).setOrigin(0.5);
         const text = this.add.text(icon.x + icon.displayWidth / 2 + 10, 0, value, {
             fontSize: '24px', color: '#ffffff', fontStyle: 'bold'
         }).setOrigin(0, 0.5);
@@ -505,5 +598,167 @@ class Station extends Phaser.Scene {
         uiElements.forEach(el => el.destroy());
         // Start the game and pass the selected cat
         this.scene.start('GameScene', { selectedCat: catKey });
+    }
+
+    showRoverRequiredMessage() {
+        const { width, height } = this.scale;
+        const modal = this.add.container(width / 2, height / 2);
+        
+        const blocker = this.add.rectangle(0, 0, width, height, 0x000000, 0.7).setOrigin(0);
+        const frame = this.add.graphics().fillStyle(0x333333, 0.9).fillRoundedRect(-200, -100, 400, 200, 10);
+        const title = this.add.text(0, -60, '❌ Rover Required', {
+            fontSize: '24px', color: '#ff6b6b', fontStyle: 'bold'
+        }).setOrigin(0.5);
+        const message = this.add.text(0, -20, 'You need to build the Rover Bay\nbefore you can explore Mars.', {
+            fontSize: '16px', color: '#ffffff', align: 'center'
+        }).setOrigin(0.5);
+        const okButton = this.add.text(0, 40, 'OK', {
+            fontSize: '18px', color: '#ffffff', backgroundColor: '#4a90e2', padding: { x: 20, y: 10 }
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        
+        this.addTweensForButton(okButton, () => modal.destroy());
+        
+        modal.add([blocker, frame, title, message, okButton]).setDepth(50);
+    }
+
+    // Helper to place a building sprite at grid coordinates
+    placeBuildingSprite(type, gridX, gridY) {
+        const tile = this.grid.find(t => t.getData('info').x === gridX && t.getData('info').y === gridY);
+        if (!tile) return;
+        
+        const building = this.buildable[type];
+        if (!building) {
+            console.warn(`[BUILD] Unknown building type: ${type}`);
+            return;
+        }
+        
+        const assetKey = building.asset || 'habitat';
+        console.log(`[BUILD] Placing ${type} using asset: ${assetKey}`);
+        
+        const yOffset = this.tileHeight / 2;
+        const sprite = this.add.image(tile.x, tile.y + yOffset, assetKey).setOrigin(0.5, 1);
+        
+        // Make building clickable
+        sprite.setInteractive({ useHandCursor: true });
+        sprite.setData('buildingInfo', { type, gridX, gridY, tile });
+        
+        // Add click handler for building context menu
+        sprite.on('pointerdown', () => {
+            this.showBuildingContextMenu(sprite, type, gridX, gridY);
+        });
+        
+        // Mark the tile as built
+        const info = tile.getData('info');
+        info.built = true;
+        info.buildingSprite = sprite;
+        tile.disableInteractive();
+        
+        console.log(`[BUILD] ✅ Restored ${type} at grid position (${gridX}, ${gridY})`);
+    }
+
+    showBuildingContextMenu(sprite, buildingType, gridX, gridY) {
+        // Close any existing context menu
+        if (this.contextMenu) {
+            this.contextMenu.destroy();
+        }
+
+        const building = this.buildable[buildingType];
+        const { width, height } = this.scale;
+        
+        // Calculate menu position near the building
+        const menuX = Math.min(sprite.x + 100, width - 150);
+        const menuY = Math.max(sprite.y - 50, 100);
+        
+        // Create context menu container
+        this.contextMenu = this.add.container(menuX, menuY);
+        
+        // Background
+        const bg = this.add.graphics()
+            .fillStyle(0x333333, 0.95)
+            .fillRoundedRect(-80, -60, 160, 120, 8)
+            .lineStyle(2, 0xffffff, 0.8)
+            .strokeRoundedRect(-80, -60, 160, 120, 8);
+        
+        // Title
+        const title = this.add.text(0, -45, building.name, {
+            fontSize: '16px', color: '#ffffff', fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        // Delete button
+        const deleteBtn = this.add.text(0, -10, '🗑️ Delete', {
+            fontSize: '14px', color: '#ff6b6b', backgroundColor: '#4a1a1a', padding: { x: 15, y: 8 }
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        
+        // Add hover effects
+        this.addTweensForButton(deleteBtn, () => {
+            this.deleteBuilding(buildingType, gridX, gridY, sprite);
+        });
+        
+        // Close button
+        const closeBtn = this.add.text(0, 20, '✕ Close', {
+            fontSize: '14px', color: '#cccccc', backgroundColor: '#2a2a2a', padding: { x: 15, y: 8 }
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        
+        this.addTweensForButton(closeBtn, () => {
+            this.contextMenu.destroy();
+            this.contextMenu = null;
+        });
+        
+        // Add click outside to close
+        const blocker = this.add.rectangle(0, 0, width, height, 0x000000, 0.01)
+            .setOrigin(0)
+            .setInteractive()
+            .on('pointerdown', () => {
+                this.contextMenu.destroy();
+                this.contextMenu = null;
+            });
+        
+        this.contextMenu.add([bg, title, deleteBtn, closeBtn, blocker]);
+        this.contextMenu.setDepth(100);
+    }
+
+    deleteBuilding(buildingType, gridX, gridY, sprite) {
+        console.log(`[BUILD] 🗑️ Deleting ${buildingType} at (${gridX}, ${gridY})`);
+        
+        // Remove from SHARED data
+        const buildingIndex = window.SHARED.station.buildings.findIndex(b => 
+            b.type === buildingType && b.x === gridX && b.y === gridY
+        );
+        
+        if (buildingIndex !== -1) {
+            window.SHARED.station.buildings.splice(buildingIndex, 1);
+            console.log(`[BUILD] ✅ Removed ${buildingType} from station data`);
+        }
+        
+        // Reset tile
+        const tile = this.grid.find(t => t.getData('info').x === gridX && t.getData('info').y === gridY);
+        if (tile) {
+            const info = tile.getData('info');
+            info.built = false;
+            info.buildingSprite = null;
+            tile.setInteractive();
+            this.drawIsoTile(tile, 0x000000, 0, 0xFFB563, 0.3, 1, this.tileWidth, this.tileHeight);
+        }
+        
+        // Remove sprite
+        if (sprite) {
+            sprite.destroy();
+        }
+        
+        // Close context menu
+        if (this.contextMenu) {
+            this.contextMenu.destroy();
+            this.contextMenu = null;
+        }
+        
+        // Update UI
+        this.updateExploreButton();
+        
+        // Save to Firebase if logged in
+        if (window.SHARED.nickname && !window.SHARED.anonymous) {
+            window.firebaseDB.ref(`/players/${window.SHARED.nickname}/data`).set(window.SHARED);
+        }
+        
+        console.log(`[BUILD] 🗑️ Successfully deleted ${buildingType}`);
     }
 } 

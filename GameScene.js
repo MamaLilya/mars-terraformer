@@ -48,13 +48,13 @@ class GameScene extends Phaser.Scene {
         // Load resource assets
         this.load.image('iron', 'assets/resource_iron_orb.png');
         this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png');
-        this.load.image('resource_solar_orb', 'assets/resource_solar_orb.png');
+        this.load.image('resource_solar_orb', 'assets/icon_solarpurr_original.png');
         
         // (Optional) Mew sound
         // this.load.audio('mew', 'assets/mew.wav');
         this.load.image('icon_catcrete', 'assets/icon_catcrete.png');
         this.load.image('icon_fishice', 'assets/icon_fishice.png');
-        this.load.image('icon_solarpurr', 'assets/icon_solarpurr.png');
+        this.load.image('icon_solarpurr', 'assets/icon_solarpurr_original.png');
 
         // Create animated player with better visuals
         const playerGraphics = this.add.graphics();
@@ -256,36 +256,27 @@ class GameScene extends Phaser.Scene {
         }, null, this);        
     
         // Add Catcrete resource icon and display
-        const catcreteIcon = this.add.image(16, 80, 'icon_catcrete').setScale(1.0).setScrollFactor(0).setDepth(10);
-        this.catcreteText = this.add.text(50, 70, `Catcrete: ${window.SHARED.resources.stone}`, { 
-            fontSize: '20px', 
+        const catcreteIcon = this.add.image(16, 100, 'icon_catcrete').setScale(1.0).setScrollFactor(0).setDepth(10);
+        this.catcreteText = this.add.text(50, 90, `Catcrete: ${window.SHARED.resources.stone}`, { 
+            fontSize: '16px', 
             fill: '#fff',
             fontStyle: 'bold',
             stroke: '#000',
             strokeThickness: 2
         }).setScrollFactor(0).setDepth(10);
         // Add Fish-Ice resource icon and display
-        const fishiceIcon = this.add.image(16, 110, 'icon_fishice').setScale(1.0).setScrollFactor(0).setDepth(10);
-        this.fishiceText = this.add.text(50, 100, `Fish-Ice: ${window.SHARED.resources.ice}`, { 
-            fontSize: '20px', 
+        const fishiceIcon = this.add.image(16, 140, 'icon_fishice').setScale(1.0).setScrollFactor(0).setDepth(10);
+        this.fishiceText = this.add.text(50, 130, `Fish-Ice: ${window.SHARED.resources.ice}`, { 
+            fontSize: '16px', 
             fill: '#fff',
             fontStyle: 'bold',
             stroke: '#000',
             strokeThickness: 2
         }).setScrollFactor(0).setDepth(10);
-        // Add Solar Purr resource icon and display
-        const solarpurrIcon = this.add.image(16, 140, 'icon_solarpurr').setScale(1.0).setScrollFactor(0).setDepth(10);
-        this.energyText = this.add.text(50, 130, `Solar Purr: ${window.SHARED.resources.energy}`, { 
-            fontSize: '20px', 
-            fill: '#fff',
-            fontStyle: 'bold',
-            stroke: '#000',
-            strokeThickness: 2
-        }).setScrollFactor(0).setDepth(10);
-        
-        // Add Iron text (for legacy compatibility)
-        this.ironText = this.add.text(50, 70, `Iron: ${window.SHARED.resources.stone}`, { 
-            fontSize: '20px', 
+        // Add Energy resource icon and display
+        const energyIcon = this.add.image(16, 180, 'icon_solarpurr').setScale(0.2).setScrollFactor(0).setDepth(10);
+        this.energyText = this.add.text(60, 170, `Energy: ${window.SHARED.resources.energy}`, { 
+            fontSize: '16px', 
             fill: '#fff',
             fontStyle: 'bold',
             stroke: '#000',
@@ -294,7 +285,7 @@ class GameScene extends Phaser.Scene {
         
         // Add Score display
         this.scoreText = this.add.text(16, 16, `Score: ${this.score}`, { 
-            fontSize: '24px', 
+            fontSize: '20px', 
             fill: '#fff',
             fontStyle: 'bold',
             stroke: '#000',
@@ -303,7 +294,7 @@ class GameScene extends Phaser.Scene {
         
         // Add Lives display
         this.livesText = this.add.text(16, 50, `Lives: ${this.lives}`, { 
-            fontSize: '20px', 
+            fontSize: '18px', 
             fill: '#fff',
             fontStyle: 'bold',
             stroke: '#000',
@@ -631,7 +622,7 @@ class GameScene extends Phaser.Scene {
         // Robust resource UI updates
         if (this.catcreteText) this.catcreteText.setText(`Catcrete: ${window.SHARED.resources.stone}`);
         if (this.fishiceText) this.fishiceText.setText(`Fish-Ice: ${window.SHARED.resources.ice}`);
-        if (this.energyText) this.energyText.setText(`Solar Purr: ${window.SHARED.resources.energy}`);
+        if (this.energyText) this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
         if (this.terraformingText) this.terraformingText.setText(`Terraforming: ${window.SHARED.progress.terraforming || 0}%`);
         if (this.livesText) this.livesText.setText(`Lives: ${this.lives}`);
         if (this.scoreText) this.scoreText.setText(`Score: ${this.score}`);
@@ -702,7 +693,7 @@ class GameScene extends Phaser.Scene {
         const resourcesCollected = {
             iron: window.SHARED.resources.stone - (this.initialResources?.stone || 0),
             ice: window.SHARED.resources.ice - (this.initialResources?.ice || 0),
-            solar: window.SHARED.resources.energy - (this.initialResources?.energy || 0)
+            energy: window.SHARED.resources.energy - (this.initialResources?.energy || 0)
         };
         
         // Prepare level data to pass to LevelComplete scene
@@ -840,23 +831,23 @@ class GameScene extends Phaser.Scene {
         if (resourceType === 'ice') {
             // Use the new ice orb asset with same scaling as iron
             resource = this.resources.create(resourceX, resourceY, 'resource_ice_orb');
-            resource.setScale(0.25); // Increased scale to make resources more visible
-            resource.body.setSize(resource.width * 0.25, resource.height * 0.25); // Match physics body to new size
+            resource.setScale(0.4); // Bigger scale for ice resources
+            resource.body.setSize(resource.width * 0.4, resource.height * 0.4); // Match physics body to new size
             console.log('[DEBUG] Ice resource created at', resourceX, resourceY);
-        } else if (resourceType === 'solar') {
-            // Use the solar orb asset with proper scaling
+        } else if (resourceType === 'energy') {
+            // Use the solar orb asset with proper scaling for energy
             resource = this.resources.create(resourceX, resourceY, 'resource_solar_orb');
-            resource.setScale(0.25); // Increased scale to make resources more visible
-            resource.body.setSize(resource.width * 0.25, resource.height * 0.25); // Match physics body to new size
-            console.log('[DEBUG] Solar resource created at', resourceX, resourceY);
+            resource.setScale(0.1); // Smaller scale for energy resources
+            resource.body.setSize(resource.width * 0.1, resource.height * 0.1); // Match physics body to new size
+            console.log('[DEBUG] Energy resource created at', resourceX, resourceY);
         } else {
             // Handle iron and other resources with scaling
             resource = this.resources.create(resourceX, resourceY, resourceType);
             
             // Specific handling for different resources - scaling and physics body
             if (resourceType === 'iron') {
-                resource.setScale(0.25); // Increased scale to make iron orbs more visible
-                resource.body.setSize(resource.width * 0.25, resource.height * 0.25); // Match physics body to new size
+                resource.setScale(0.4); // Bigger scale for iron resources
+                resource.body.setSize(resource.width * 0.4, resource.height * 0.4); // Match physics body to new size
             } else {
                 // Assuming other resources are sized correctly
                 resource.body.setSize(resource.width, resource.height);
@@ -875,7 +866,7 @@ class GameScene extends Phaser.Scene {
         if (this.nextResourceType === 'iron') {
             this.nextResourceType = 'ice';
         } else if (this.nextResourceType === 'ice') {
-            this.nextResourceType = 'solar';
+            this.nextResourceType = 'energy';
         } else {
             this.nextResourceType = 'iron'; // Cycle back to iron
         }
@@ -932,7 +923,7 @@ class GameScene extends Phaser.Scene {
                     ease: 'Power2'
                 });
             }
-        } else if (resourceType === 'solar') {
+        } else if (resourceType === 'energy') {
             window.SHARED.resources.energy += 1;
             if (this.energyText) this.energyText.setText(`Energy: ${window.SHARED.resources.energy}`);
             // Animate energy text

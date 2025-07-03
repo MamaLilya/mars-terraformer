@@ -67,7 +67,7 @@ class Settings extends Phaser.Scene {
         }).setOrigin(0.5);
         
         // Resource display
-        const resourceText = `Catcrete: ${window.SHARED.resources?.stone || 0} | Fish-Ice: ${window.SHARED.resources?.ice || 0} | Solar Purr: ${window.SHARED.resources?.energy || 0}`;
+        const resourceText = `Catcrete: ${window.SHARED.resources?.stone || 0} | Fish-Ice: ${window.SHARED.resources?.ice || 0} | Energy: ${window.SHARED.resources?.energy || 0}`;
         this.add.text(centerX, 380, resourceText, { 
             fontSize: 16, 
             color: '#ccc'

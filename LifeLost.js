@@ -14,11 +14,11 @@ class LifeLost extends Phaser.Scene {
         // Load cat-themed resource icons
         this.load.image('icon_catcrete', 'assets/icon_catcrete.png');
         this.load.image('icon_fishice', 'assets/icon_fishice.png');
-        this.load.image('icon_solarpurr', 'assets/icon_solarpurr.png');
+        this.load.image('icon_solarpurr', 'assets/icon_solarpurr_original.png');
         // Fallback to old icons if new ones don't exist
         this.load.image('resource_iron_orb', 'assets/resource_iron_orb.png');
         this.load.image('resource_ice_orb', 'assets/resource_ice_orb.png');
-        this.load.image('resource_solar_orb', 'assets/resource_solar_orb.png');
+        this.load.image('resource_solar_orb', 'assets/icon_solarpurr_original.png');
     }
 
     create() {
@@ -48,8 +48,8 @@ class LifeLost extends Phaser.Scene {
         const resourceContainer = this.add.container(centerX, resourceY);
         const catcreteSummary = this.createResourceDisplay(-150, 0, 'icon_catcrete', `Catcrete: ${this.resources.stone}`);
         const fishiceSummary = this.createResourceDisplay(0, 0, 'icon_fishice', `Fish-Ice: ${this.resources.ice}`);
-        const solarpurrSummary = this.createResourceDisplay(150, 0, 'icon_solarpurr', `Solar Purr: ${this.resources.energy}`);
-        resourceContainer.add([catcreteSummary, fishiceSummary, solarpurrSummary]);
+        const energySummary = this.createResourceDisplay(150, 0, 'icon_solarpurr', `Energy: ${this.resources.energy}`);
+        resourceContainer.add([catcreteSummary, fishiceSummary, energySummary]);
 
         // --- Logic ---
         if (localStorage.getItem('lastLifeLostAt') === null) {

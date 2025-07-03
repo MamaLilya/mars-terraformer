@@ -5,7 +5,7 @@ A cat-themed Mars colonization platformer game built with Phaser 3. Help your fe
 ## 🎮 Game Overview
 
 - **Platformer Gameplay**: Jump between platforms, collect resources, and avoid lava
-- **Resource Management**: Gather Catcrete (stone), Fish-Ice (ice), and Solar Purr (energy)
+- **Resource Management**: Gather Catcrete (stone), Fish-Ice (ice), and Energy
 - **Station Building**: Construct and manage your Mars colony with various buildings
 - **Progressive Difficulty**: Levels get harder as you advance
 - **Cat-Themed**: Everything is cat-themed, from the astronaut to the resources!

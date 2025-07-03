@@ -101,7 +101,7 @@ export class Station extends Phaser.Scene {
         this.resourceTexts.energy = this.uiManager.createResourceDisplay(
             width * 0.75, 
             headerY, 
-            'resource_solar_orb', 
+            'icon_solarpurr', 
             window.SHARED.resources.energy
         );
     }
@@ -209,6 +209,11 @@ export class Station extends Phaser.Scene {
         cellData.built = true;
         cellData.building = buildingKey;
         cellData.buildingSprite = buildingImage;
+        
+        // Add building to station buildings list
+        if (window.SHARED.station && window.SHARED.station.buildings && !window.SHARED.station.buildings.includes(buildingKey)) {
+            window.SHARED.station.buildings.push(buildingKey);
+        }
         
         this.drawIsoTile(tile, 0x00ff00, 0.1, 0x00ff00, 0.5, 2, this.tileWidth, this.tileHeight);
     }
@@ -345,10 +350,19 @@ export class Station extends Phaser.Scene {
             () => this.toggleBuildMenu()
         );
         
+        // Check if rover bay is built before allowing Mars exploration
+        const hasRoverBay = window.SHARED.station && window.SHARED.station.buildings && window.SHARED.station.buildings.includes('rover_bay');
+        
         this.uiManager.createNavButton(
             width * 0.6, navY, 
-            'Explore Mars', 
-            () => this.scene.start('GameScene')
+            hasRoverBay ? 'Explore Mars' : 'Explore Mars (Locked)', 
+            () => {
+                if (hasRoverBay) {
+                    this.scene.start('GameScene');
+                } else {
+                    this.showRoverRequiredMessage();
+                }
+            }
         );
         
         this.cancelButton = this.uiManager.createNavButton(
@@ -356,5 +370,13 @@ export class Station extends Phaser.Scene {
             'Cancel Build', 
             () => this.exitBuildMode()
         ).setVisible(false);
+    }
+
+    showRoverRequiredMessage() {
+        this.uiManager.createModal(
+            '🚀 Rover Required',
+            'You need to build a Rover Bay before you can explore Mars.\n\nBuild a Rover Bay in your station first!',
+            [{ text: 'OK', onClick: () => {} }]
+        );
     }
 } 

@@ -49,14 +49,14 @@ export const ASSETS = {
     ICONS: {
         CATCRETE: 'assets/icon_catcrete.png',
         FISHICE: 'assets/icon_fishice.png',
-        SOLARPURR: 'assets/icon_solarpurr.png'
+        SOLARPURR: 'assets/icon_solarpurr_original.png'
     },
     
     // Resources
     RESOURCES: {
         IRON_ORB: 'assets/resource_iron_orb.png',
         ICE_ORB: 'assets/resource_ice_orb.png',
-        SOLAR_ORB: 'assets/resource_solar_orb.png'
+        SOLAR_ORB: 'assets/icon_solarpurr_original.png'
     },
     
     // Player
@@ -100,7 +100,7 @@ export const CONSTANTS = {
     
     // Resources
     RESOURCES: {
-        SCALE: 0.25,
+        SCALE: 0.3,
         COLLECTION_SCORE: 10
     },
     
@@ -145,7 +145,7 @@ export const BUILDINGS = {
         description: 'The center of your new colony.',
         cost: { stone: 100, ice: 50, energy: 20 },
         upkeep: 2,
-        unlock: { missions_completed: 1 },
+        unlock: {},
         asset: 'station'
     },
     'living_quarters': {
@@ -154,7 +154,7 @@ export const BUILDINGS = {
         cost: { stone: 20, energy: 5 },
         upkeep: 2,
         unlock: { missions_completed: 1 },
-        asset: 'habitat'
+        asset: 'station'
     },
     'greenhouse': {
         name: 'Greenhouse',
@@ -162,7 +162,7 @@ export const BUILDINGS = {
         cost: { stone: 10, ice: 5 },
         upkeep: 2,
         unlock: { terraforming: 20 },
-        asset: 'habitat'
+        asset: 'station'
     },
     'water_module': {
         name: 'Water Module',
@@ -170,7 +170,7 @@ export const BUILDINGS = {
         cost: { stone: 5, ice: 10 },
         upkeep: 3,
         unlock: { missions_completed: 2 },
-        asset: 'habitat'
+        asset: 'station'
     },
     'lab': {
         name: 'Research Lab',
@@ -178,7 +178,7 @@ export const BUILDINGS = {
         cost: { stone: 15, ice: 5, energy: 10 },
         upkeep: 5,
         unlock: { terraforming: 40 },
-        asset: 'habitat'
+        asset: 'station'
     },
     'rover_bay': {
         name: 'Rover Bay',

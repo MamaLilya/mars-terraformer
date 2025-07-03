@@ -31,10 +31,14 @@
     <div class="loading" id="loading">Loading Cat Colony...</div>
     
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="firebase.js"></script>
     <script>
         // Cache-busting query string
         const version = new Date().getTime();
         const scripts = [
+            'scenes/Login.js',
             'MainMenu.js', 'WorldMap.js', 'Station.js', 'GameScene.js',
             'GameOver.js', 'Shop.js', 'Ranking.js', 'Settings.js',
             'LifeLost.js', 'LevelComplete.js', 'main.js'
