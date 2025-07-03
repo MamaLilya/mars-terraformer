@@ -44,7 +44,12 @@ Terraformation/
 
 ### Installation
 1. Clone or download the project
-2. Start a local web server in the project directory:
+2. **Set up Firebase (for save/load functionality):**
+   - Copy `firebase.js.template` to `firebase.js`
+   - Get your Firebase configuration from [Firebase Console](https://console.firebase.google.com/)
+   - Replace the placeholder values in `firebase.js` with your actual config
+   - Enable Realtime Database in your Firebase project
+3. Start a local web server in the project directory:
    ```bash
    # Using Python 3
    python -m http.server 8000
@@ -55,7 +60,7 @@ Terraformation/
    # Using PHP
    php -S localhost:8000
    ```
-3. Open your browser and navigate to `http://localhost:8000`
+4. Open your browser and navigate to `http://localhost:8000`
 
 ## 🎯 Game Controls
 

@@ -159,4 +159,42 @@ out/
 # Game-specific
 *.save
 *.sav
-saves/ 
+saves/
+
+# Firebase and API keys
+firebase.js
+firebase-config.js
+firebase-keys.js
+firebase-credentials.json
+firebase-admin.json
+serviceAccountKey.json
+google-services.json
+GoogleService-Info.plist
+
+# Environment variables and secrets
+.env.local
+.env.development
+.env.production
+secrets.json
+config/secrets.js
+config/keys.js
+
+# User data and databases
+user-data/
+player-data/
+database/
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs and debugging
+debug.log
+error.log
+*.log
+logs/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+*.temp 
