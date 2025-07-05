@@ -666,8 +666,27 @@ class Station extends Phaser.Scene {
         const { width, height } = this.scale;
         
         // Calculate menu position near the building
-        const menuX = Math.min(sprite.x + 100, width - 150);
-        const menuY = Math.max(sprite.y - 50, 100);
+        // Menu dimensions: 160x120
+        const menuWidth = 160;
+        const menuHeight = 120;
+        
+        // Start with building position
+        let menuX = sprite.x + 80; // Offset to the right of building
+        let menuY = sprite.y - 30; // Slightly above building
+        
+        // Ensure menu stays within screen bounds
+        if (menuX + menuWidth/2 > width) {
+            menuX = sprite.x - 80 - menuWidth/2; // Show to the left instead
+        }
+        if (menuX - menuWidth/2 < 0) {
+            menuX = menuWidth/2 + 10; // Minimum left margin
+        }
+        if (menuY + menuHeight/2 > height) {
+            menuY = height - menuHeight/2 - 10; // Minimum bottom margin
+        }
+        if (menuY - menuHeight/2 < 0) {
+            menuY = menuHeight/2 + 10; // Minimum top margin
+        }
         
         // Create context menu container
         this.contextMenu = this.add.container(menuX, menuY);

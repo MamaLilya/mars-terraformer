@@ -9,12 +9,19 @@ class MainMenu extends Phaser.Scene {
     preload() {
         this.load.image('btn_station', 'assets/btn_station.png');
         this.load.image('main_menu_foreground', 'assets/main_menu_foreground.png');
+        this.load.image('rocket', 'assets/rocket.png');
     }
 
     async create() {
         const { width, height } = this.scale;
         this.cameras.main.setBackgroundColor('#1a1a2e');
         this.add.image(width/2, height/2, 'main_menu_foreground').setOrigin(0.5);
+        
+        // Add rocket near the right edge
+        const rocket = this.add.image(width - 150, height - 400, 'rocket')
+            .setScale(0.3) // Scale down the rocket to fit nicely
+            .setOrigin(0.5)
+            .setDepth(10); // Ensure it's above other elements
 
         // Auto-login if nickname is saved
         const savedNickname = localStorage.getItem('nickname');
